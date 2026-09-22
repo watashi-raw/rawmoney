@@ -1,4 +1,4 @@
-/* ===== Mi Dinero · datos, defaults y demo ===== */
+/* ===== Raw Money · datos, defaults y demo ===== */
 const DB_KEY = 'midinero.v1';
 const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-3);
 const pad = n => String(n).padStart(2, '0');

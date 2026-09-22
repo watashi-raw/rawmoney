@@ -1,4 +1,4 @@
-/* ===== Mi Dinero · configuración de nube (Supabase) =====
+/* ===== Raw Money · configuración de nube (Supabase) =====
    Deja los dos valores vacíos y la app funciona solo en este navegador (localStorage).
    Con URL + publishable key, aparece "Nube" en Cuentas y ajustes: inicias sesión con tu correo
    (enlace mágico) y tus datos se guardan en tu fila privada de Supabase, sincronizada entre dispositivos.

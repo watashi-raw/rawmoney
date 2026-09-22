@@ -1,4 +1,4 @@
-/* ===== Mi Dinero · portada estilo SAMSARA: flores en ASCII sobre frutas desenfocadas + candado ===== */
+/* ===== Raw Money · portada estilo SAMSARA: flores en ASCII sobre frutas desenfocadas + candado ===== */
 const LOCK_KEY = 'midinero.lock'; const UNLOCK_KEY = 'midinero.unlocked';
 function hash(i, j, s = 0) { let h = (i * 374761393 + j * 668265263 + s * 1274126177) | 0; h = (h ^ (h >>> 13)) * 1274126177; h = h ^ (h >>> 16); return ((h >>> 0) % 1000) / 1000; }
 function mkCanvas(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
@@ -110,7 +110,7 @@ function coverHTML() {
   return `<section class="login">
     <div class="login-art" aria-hidden="true"><div class="art-frame"><canvas id="cover-art"></canvas><span class="art-num">/01</span><span class="art-cap">Flores<br>y frutas</span></div></div>
     <div class="login-body">
-      <h1 class="logo">mi dinero</h1>
+      <h1 class="logo">raw money</h1>
       <form class="login-form" id="gate" autocomplete="on">
         <input type="email" name="email" value="${esc(email)}" autocomplete="username" hidden>
         <div class="field"><label for="gate-pw">Contraseña</label><input id="gate-pw" name="password" type="password" autocomplete="current-password" required></div>

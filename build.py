@@ -17,8 +17,8 @@ skip = {SUPA, '<!DOCTYPE html>', '<html lang="es">', '<head>', '</head>', '<body
 art = "\n".join(l for l in html.split("\n") if l.strip() not in skip)
 (dist / "artifact.html").write_text(art, encoding="utf-8")
 # Versión limpia (arranca sin datos demo)
-clean = html.replace('<script>\n/* ===== Mi Dinero · shell', '<script>window.START_EMPTY = true;</script>\n<script>\n/* ===== Mi Dinero · shell', 1)
+clean = html.replace('<script>\n/* ===== Raw Money · shell', '<script>window.START_EMPTY = true;</script>\n<script>\n/* ===== Raw Money · shell', 1)
 assert 'START_EMPTY = true' in clean
 (dist / "index-limpio.html").write_text(clean, encoding="utf-8")
-(dist / "artifact-limpio.html").write_text("\n".join(l for l in clean.split("\n") if l.strip() not in skip).replace("<title>Mi Dinero</title>", "<title>Mi Dinero Limpio</title>"), encoding="utf-8")
+(dist / "artifact-limpio.html").write_text("\n".join(l for l in clean.split("\n") if l.strip() not in skip).replace("<title>Raw Money</title>", "<title>Raw Money Limpio</title>"), encoding="utf-8")
 print("ok", len(html) // 1024, "KB")

@@ -1,4 +1,4 @@
-/* ===== Mi Dinero · sincronización con Supabase (opcional) =====
+/* ===== Raw Money · sincronización con Supabase (opcional) =====
    Una fila por usuario en la tabla finanzas_state (user_id, data jsonb, updated_at).
    localStorage sigue siendo la copia de trabajo; la nube es respaldo + sincronización. */
 const CLOUD = { client: null, user: null, ready: false, saving: false, lastError: '', enabled: false };

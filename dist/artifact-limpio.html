@@ -1,4 +1,4 @@
-<title>Mi Dinero Limpio</title>
+<title>Raw Money Limpio</title>
 <meta name="description" content="Dashboard de finanzas personales por mes: ingresos, gastos, tarjetas, deudas, presupuestos y calendario de pagos.">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap">
 <style>
@@ -646,7 +646,7 @@ code{font-family:var(--font);background:var(--surface-2);border-radius:2px}
 </style>
 <div id="app" class="app"></div>
 <script>
-/* ===== Mi Dinero · configuración de nube (Supabase) =====
+/* ===== Raw Money · configuración de nube (Supabase) =====
    Deja los dos valores vacíos y la app funciona solo en este navegador (localStorage).
    Con URL + publishable key, aparece "Nube" en Cuentas y ajustes: inicias sesión con tu correo
    (enlace mágico) y tus datos se guardan en tu fila privada de Supabase, sincronizada entre dispositivos.
@@ -659,7 +659,7 @@ window.SUPABASE = {
 
 </script>
 <script>
-/* ===== Mi Dinero · datos, defaults y demo ===== */
+/* ===== Raw Money · datos, defaults y demo ===== */
 const DB_KEY = 'midinero.v1';
 const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-3);
 const pad = n => String(n).padStart(2, '0');
@@ -869,7 +869,7 @@ function allAccounts() { return [...S.data.accounts.map(a => ({ ...a, isCard: fa
 
 </script>
 <script>
-/* ===== Mi Dinero · cálculos dinámicos ===== */
+/* ===== Raw Money · cálculos dinámicos ===== */
 
 /* Materializa gastos recurrentes del mes como movimientos reales (idempotente). */
 function materializeRecurring(ym) {
@@ -1034,7 +1034,7 @@ function historySeries(n = 6, endYm = S.month) {
 
 </script>
 <script>
-/* ===== Mi Dinero · gráficos SVG minimalistas (una escala, hover, sin librerías) ===== */
+/* ===== Raw Money · gráficos SVG minimalistas (una escala, hover, sin librerías) ===== */
 let tipEl;
 function tipShow(html, x, y) { if (!tipEl) { tipEl = document.createElement('div'); tipEl.className = 'tip'; document.body.appendChild(tipEl); } tipEl.innerHTML = html; tipEl.classList.add('show'); const w = tipEl.offsetWidth, h = tipEl.offsetHeight; let lx = x + 14, ly = y + 14; if (lx + w > innerWidth - 8) lx = x - w - 14; if (ly + h > innerHeight - 8) ly = y - h - 14; tipEl.style.left = lx + 'px'; tipEl.style.top = ly + 'px'; }
 function tipHide() { if (tipEl) tipEl.classList.remove('show'); }
@@ -1140,7 +1140,7 @@ function flowSVG(total, parts) {
 
 </script>
 <script>
-/* ===== Mi Dinero · vistas ===== */
+/* ===== Raw Money · vistas ===== */
 const catStyle = c => `--cat:${col(c.color)};--cat-soft:color-mix(in srgb, ${col(c.color)} 16%, var(--surface))`;
 const catIcon = (c, cls = 'ic') => `<span class="${cls}" style="${catStyle(c)}">${icon(c.icon)}</span>`;
 const KIND_COLOR = { tarjeta: 'var(--plum)', deuda: 'var(--bad)', recurrente: 'var(--warn)', suscripcion: 'var(--plum-deep)', meses: 'var(--ink-3)', corte: 'var(--line-strong)' };
@@ -1463,7 +1463,7 @@ const NAV_GROUPS = [['Mi mes', ['inicio', 'movimientos', 'gastos', 'resumen', 'h
 
 </script>
 <script>
-/* ===== Mi Dinero · drawer y formularios ===== */
+/* ===== Raw Money · drawer y formularios ===== */
 function closeDrawer() { document.querySelectorAll('.veil,.drawer,.sheet').forEach(e => e.remove()); document.removeEventListener('keydown', escClose); }
 function escClose(e) { if (e.key === 'Escape') closeDrawer(); }
 function openDrawer({ title, eyebrow, body, onSave, onDelete, saveLabel = 'Guardar', deleteLabel = 'Eliminar' }) {
@@ -1674,7 +1674,7 @@ function formAccount(a) {
 
 </script>
 <script>
-/* ===== Mi Dinero · sincronización con Supabase (opcional) =====
+/* ===== Raw Money · sincronización con Supabase (opcional) =====
    Una fila por usuario en la tabla finanzas_state (user_id, data jsonb, updated_at).
    localStorage sigue siendo la copia de trabajo; la nube es respaldo + sincronización. */
 const CLOUD = { client: null, user: null, ready: false, saving: false, lastError: '', enabled: false };
@@ -1770,7 +1770,7 @@ function bindCloudCard(root) {
 
 </script>
 <script>
-/* ===== Mi Dinero · portada estilo SAMSARA: flores en ASCII sobre frutas desenfocadas + candado ===== */
+/* ===== Raw Money · portada estilo SAMSARA: flores en ASCII sobre frutas desenfocadas + candado ===== */
 const LOCK_KEY = 'midinero.lock'; const UNLOCK_KEY = 'midinero.unlocked';
 function hash(i, j, s = 0) { let h = (i * 374761393 + j * 668265263 + s * 1274126177) | 0; h = (h ^ (h >>> 13)) * 1274126177; h = h ^ (h >>> 16); return ((h >>> 0) % 1000) / 1000; }
 function mkCanvas(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
@@ -1882,7 +1882,7 @@ function coverHTML() {
   return `<section class="login">
     <div class="login-art" aria-hidden="true"><div class="art-frame"><canvas id="cover-art"></canvas><span class="art-num">/01</span><span class="art-cap">Flores<br>y frutas</span></div></div>
     <div class="login-body">
-      <h1 class="logo">mi dinero</h1>
+      <h1 class="logo">raw money</h1>
       <form class="login-form" id="gate" autocomplete="on">
         <input type="email" name="email" value="${esc(email)}" autocomplete="username" hidden>
         <div class="field"><label for="gate-pw">Contraseña</label><input id="gate-pw" name="password" type="password" autocomplete="current-password" required></div>
@@ -1916,7 +1916,7 @@ function formLocalPassword() {
 </script>
 <script>window.START_EMPTY = true;</script>
 <script>
-/* ===== Mi Dinero · shell, navegación y acciones ===== */
+/* ===== Raw Money · shell, navegación y acciones ===== */
 let toastT;
 function toast(msg) { let el = document.querySelector('.toast'); if (!el) { el = document.createElement('div'); el.className = 'toast'; document.body.appendChild(el); } el.textContent = msg; el.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('show'), 2200); }
 function confirmBox(title, text, onOk, okLabel = 'Eliminar') {
@@ -1926,7 +1926,7 @@ function confirmBox(title, text, onOk, okLabel = 'Eliminar') {
 function applyTheme() { let t = null; try { t = localStorage.getItem('midinero.theme'); } catch (e) {} document.documentElement.dataset.theme = t || 'dark'; }
 function toggleTheme() { const root = document.documentElement; root.dataset.theme = isLightTheme() ? 'dark' : 'light'; try { localStorage.setItem('midinero.theme', root.dataset.theme); } catch (e) {} render(); }
 async function exportJSON() {
-  const json = JSON.stringify(S.data, null, 2); const filename = `mi-dinero-${todayISO()}.json`;
+  const json = JSON.stringify(S.data, null, 2); const filename = `raw-money-${todayISO()}.json`;
   if (window.claude && typeof window.claude.use === 'function') {
     // Dentro del visor de claude.ai: la descarga pasa por la capacidad "downloads" (el visor pide confirmación).
     const dl = await window.claude.use('downloads');
@@ -1963,7 +1963,7 @@ function openSheet() {
 function shell() {
   const navHtml = NAV_GROUPS.map(([g, keys]) => `<div class="grp">${g}</div>${keys.map(k => `<a href="#${k}" data-nav="${k}" class="${S.view === k ? 'on' : ''}">${icon(VIEWS[k].icon)}${VIEWS[k].title}</a>`).join('')}`).join('');
   return `
-  <aside class="side"><a class="logo" href="#inicio"><i>$</i><span>Mi Dinero<small>finanzas personales</small></span></a><nav class="nav">${navHtml}</nav>
+  <aside class="side"><a class="logo" href="#inicio"><i>$</i><span>Raw Money<small>finanzas personales</small></span></a><nav class="nav">${navHtml}</nav>
     <div class="foot">${S.data.demo ? '<div class="demo"><b>●</b> Datos de demostración</div>' : ''}${typeof CLOUD !== 'undefined' && CLOUD.enabled ? `<div class="demo"><i class="cloud-dot ${CLOUD.user ? 'on' : ''}"></i> ${CLOUD.user ? 'Nube: ' + esc(CLOUD.user.email) : 'Nube: sin sesión'}</div>` : ''}<button class="btn secondary sm theme-side" data-act="theme">${icon('moon','i moon')}${icon('sun','i sun')}Tema</button></div></aside>
   <div class="main">
     <header class="top"><div class="in"><a class="logo" href="#inicio" style="display:none" id="mlogo"><i>$</i></a><div class="ttl">${VIEWS[S.view].title}</div><span class="sp"></span>
@@ -1977,7 +1977,7 @@ function shell() {
 
 function render() {
   const app = document.getElementById('app');
-  if (S.locked) { app.className = ''; app.innerHTML = coverHTML(); bindCover(app); document.title = 'Mi Dinero'; window.scrollTo(0, 0); return; }
+  if (S.locked) { app.className = ''; app.innerHTML = coverHTML(); bindCover(app); document.title = 'Raw Money'; window.scrollTo(0, 0); return; }
   app.className = 'app';
   materializeRecurring(S.month);
   const scrollY = window.scrollY;
@@ -2002,7 +2002,7 @@ function render() {
   app.querySelectorAll('[data-ev]').forEach(r => r.addEventListener('click', () => { const [kind, id] = r.dataset.ev.split(':'); if (kind === 'tarjeta' || kind === 'corte') detailCard(byId(S.data.cards, id)); else if (kind === 'deuda') detailDebt(byId(S.data.debts, id)); else if (kind === 'meses') formInstallment(byId(S.data.installments, id)); else formTx(byId(S.data.transactions, id)); }));
   // leyenda ↔ donut
   app.querySelectorAll('.legend .l').forEach(l => { const key = l.dataset.key; const wrap = l.closest('.donutwrap'); l.addEventListener('mouseenter', () => { wrap.querySelectorAll('.donut path').forEach(p => p.style.opacity = p.dataset.key === key ? 1 : .25); wrap.querySelectorAll('.legend .l').forEach(x => x.classList.toggle('dim', x !== l)); }); l.addEventListener('mouseleave', () => { wrap.querySelectorAll('.donut path').forEach(p => p.style.opacity = 1); wrap.querySelectorAll('.legend .l').forEach(x => x.classList.remove('dim')); }); });
-  document.title = `${v.title} · Mi Dinero`;
+  document.title = `${v.title} · Raw Money`;
   window.scrollTo(0, S._keepScroll ? scrollY : 0); S._keepScroll = false;
 }
 

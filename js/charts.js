@@ -1,4 +1,4 @@
-/* ===== Mi Dinero · gráficos SVG minimalistas (una escala, hover, sin librerías) ===== */
+/* ===== Raw Money · gráficos SVG minimalistas (una escala, hover, sin librerías) ===== */
 let tipEl;
 function tipShow(html, x, y) { if (!tipEl) { tipEl = document.createElement('div'); tipEl.className = 'tip'; document.body.appendChild(tipEl); } tipEl.innerHTML = html; tipEl.classList.add('show'); const w = tipEl.offsetWidth, h = tipEl.offsetHeight; let lx = x + 14, ly = y + 14; if (lx + w > innerWidth - 8) lx = x - w - 14; if (ly + h > innerHeight - 8) ly = y - h - 14; tipEl.style.left = lx + 'px'; tipEl.style.top = ly + 'px'; }
 function tipHide() { if (tipEl) tipEl.classList.remove('show'); }
