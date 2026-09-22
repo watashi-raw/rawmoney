@@ -48,6 +48,7 @@ Nota: en Vercel se sirve `index.html` de la raíz con sus carpetas `css/` y `js/
 La portada solo pide correo y contraseña. Sin Supabase, la primera contraseña que escribas queda guardada (cifrada) en ese navegador y desde entonces es la que se pide; se cambia en Cuentas y ajustes → Sesión. Es un candado de privacidad, no cifra los datos.
 
 ### Cómo se comporta la sincronización
+- La app arranca vacía. Los datos demo solo aparecen si los cargas desde Cuentas y ajustes → Cargar datos demo, y nunca se suben a la nube.
 - Al iniciar sesión, si la nube tiene datos, mandan los de la nube. Si la nube está vacía y aquí hay datos reales (no demo), se suben.
 - Cada guardado local se sube 1 segundo después (`cloudSave` en `js/sync.js`). El punto en la barra lateral indica: verde sincronizado, ámbar guardando, rojo error.
 - Botones "Traer de la nube" y "Subir ahora" en la tarjeta Nube por si quieres forzar.

@@ -1914,7 +1914,6 @@ function formLocalPassword() {
 }
 
 </script>
-<script>window.START_EMPTY = true;</script>
 <script>
 /* ===== Raw Money · shell, navegación y acciones ===== */
 let toastT;
@@ -2009,7 +2008,7 @@ function render() {
 function route() { const h = location.hash.replace('#', '') || 'inicio'; if (VIEWS[h]) { if (h !== S.view) S.filters = h === 'movimientos' ? S.filters : {}; S.view = h; } else S.view = 'inicio'; closeDrawer(); render(); }
 function init() {
   applyTheme();
-  S.data = loadData() || (window.START_EMPTY ? emptyData() : demoData()); saveData();
+  const loaded = loadData(); S.data = loaded && !(loaded.demo && !window.START_DEMO) ? loaded : (window.START_DEMO ? demoData() : emptyData()); saveData();
   S.month = thisMonth();
   S.locked = !isUnlocked();
   window.addEventListener('hashchange', route);

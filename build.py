@@ -16,9 +16,10 @@ skip = {SUPA, '<!DOCTYPE html>', '<html lang="es">', '<head>', '</head>', '<body
         '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">'}
 art = "\n".join(l for l in html.split("\n") if l.strip() not in skip)
 (dist / "artifact.html").write_text(art, encoding="utf-8")
-# Versión limpia (arranca sin datos demo)
-clean = html.replace('<script>\n/* ===== Raw Money · shell', '<script>window.START_EMPTY = true;</script>\n<script>\n/* ===== Raw Money · shell', 1)
-assert 'START_EMPTY = true' in clean
-(dist / "index-limpio.html").write_text(clean, encoding="utf-8")
-(dist / "artifact-limpio.html").write_text("\n".join(l for l in clean.split("\n") if l.strip() not in skip).replace("<title>Raw Money</title>", "<title>Raw Money Limpio</title>"), encoding="utf-8")
+# Artifact de demostración (arranca con datos de ejemplo); todo lo demás arranca vacío
+demo = html.replace('<script>\n/* ===== Raw Money · shell', '<script>window.START_DEMO = true;</script>\n<script>\n/* ===== Raw Money · shell', 1)
+assert 'START_DEMO = true' in demo
+(dist / "artifact.html").write_text("\n".join(l for l in demo.split("\n") if l.strip() not in skip), encoding="utf-8")
+(dist / "index-limpio.html").write_text(html, encoding="utf-8")
+(dist / "artifact-limpio.html").write_text(art.replace("<title>Raw Money</title>", "<title>Raw Money Limpio</title>"), encoding="utf-8")
 print("ok", len(html) // 1024, "KB")
