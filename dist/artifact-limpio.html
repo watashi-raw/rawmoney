@@ -1701,13 +1701,16 @@ async function cloudPull() {
   if (!CLOUD.client || !CLOUD.user) return;
   const { data, error } = await CLOUD.client.from('finanzas_state').select('data, updated_at').eq('user_id', CLOUD.user.id).maybeSingle();
   if (error) { CLOUD.lastError = error.message; return; }
+  if (S.data.demo) { S.data = emptyData(); try { localStorage.setItem(DB_KEY, JSON.stringify(S.data)); } catch (e) {} }
   if (data && data.data && data.data.version === 1) {
+    if (data.data.demo) { // si alguna vez se subió la demo, se limpia la nube
+      S.data = emptyData(); try { localStorage.setItem(DB_KEY, JSON.stringify(S.data)); } catch (e) {} await cloudPush(); return;
+    }
     const remoteTx = (data.data.transactions || []).length; const localTx = (S.data.transactions || []).length;
-    const localIsDemo = S.data.demo;
     // La nube manda, salvo que la nube esté vacía y aquí haya datos reales.
-    if (remoteTx > 0 || localTx === 0 || localIsDemo) { S.data = { ...emptyData(), ...data.data }; try { localStorage.setItem(DB_KEY, JSON.stringify(S.data)); } catch (e) {} }
+    if (remoteTx > 0 || localTx === 0) { S.data = { ...emptyData(), ...data.data }; try { localStorage.setItem(DB_KEY, JSON.stringify(S.data)); } catch (e) {} }
     else await cloudPush();
-  } else if (!S.data.demo && (S.data.transactions.length || S.data.cards.length || S.data.accounts.length)) {
+  } else if (S.data.transactions.length || S.data.cards.length || S.data.accounts.length) {
     await cloudPush();
   }
 }
@@ -1716,6 +1719,7 @@ let cloudT;
 function cloudSave() { if (!CLOUD.client || !CLOUD.user) return; clearTimeout(cloudT); cloudT = setTimeout(cloudPush, 900); }
 async function cloudPush() {
   if (!CLOUD.client || !CLOUD.user) return;
+  if (S.data.demo) { toast('Los datos demo no se guardan en la nube'); return; }
   CLOUD.saving = true; setCloudDot();
   const { error } = await CLOUD.client.from('finanzas_state').upsert({ user_id: CLOUD.user.id, data: S.data, updated_at: new Date().toISOString() });
   CLOUD.saving = false; CLOUD.lastError = error ? error.message : ''; setCloudDot();
