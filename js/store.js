@@ -26,16 +26,25 @@ const TYPES = { ingreso: 'Ingreso', gasto: 'Gasto', transferencia: 'Transferenci
 const METHODS = { efectivo: 'Efectivo', debito: 'Débito', credito: 'Crédito', transferencia: 'Transferencia', otro: 'Otro' };
 const FREQ = { mensual: 'Mensual', quincenal: 'Quincenal', semanal: 'Semanal', bimestral: 'Bimestral', anual: 'Anual' };
 
-/* Paleta de categorías (validada para gráficos: los 6 primeros tonos + gris "Otros") */
-const CAT_COLORS = ['#AE86CF', '#6DB27C', '#8AA6E3', '#C9A247', '#D87484', '#5DB3A4', '#C88AB0', '#D0876F', '#7F93C4', '#CFA07C', '#B98CA0', '#A9B27A', '#8F8F96'];
-const OTHERS_COLOR = '#8F8F96';
-/* Tema oscuro por defecto; en claro se oscurecen los colores de categoría para que contrasten sobre superficie clara. */
+/* Paleta de categorías · Pantone: Vivacious, Fragile Sprout, Bison, Veiled Pink, Cardamom Seed, Brush, Pickled Beet, Malaga, Green Oasis… */
+const CAT_COLORS = ['#9B2B5A', '#A3A93A', '#6B5240', '#D98FA0', '#73743A', '#B39E8B', '#4A2639', '#B4607E', '#C9B85C', '#8C6A55', '#7A1E4E', '#5E6B2E', '#A99A97'];
+const OTHERS_COLOR = '#A99A97';
+/* Colores de la paleta anterior → su equivalente en la nueva (las categorías guardadas conservan su valor viejo) */
+const OLD_COLORS = { '#AE86CF': 0, '#6DB27C': 1, '#8AA6E3': 2, '#C9A247': 8, '#D87484': 3, '#5DB3A4': 4, '#C88AB0': 7, '#D0876F': 9, '#7F93C4': 6, '#CFA07C': 5, '#B98CA0': 10, '#A9B27A': 11, '#8F8F96': 12, '#8A3B75': 0, '#3F7FBF': 6 };
 const isLightTheme = () => document.documentElement.dataset.theme === 'light' || (!document.documentElement.dataset.theme && matchMedia('(prefers-color-scheme: light)').matches);
-const col = hex => { if (!isLightTheme() || !/^#[0-9a-f]{6}$/i.test(hex)) return hex; const n = parseInt(hex.slice(1), 16); const f = v => Math.round(v * 0.68).toString(16).padStart(2, '0'); return `#${f(n >> 16)}${f((n >> 8) & 255)}${f(n & 255)}`; };
+/* En tema oscuro los colores se aclaran para que contrasten sobre el fondo vino */
+const col = hex => {
+  if (!/^#[0-9a-f]{6}$/i.test(hex || '')) return hex;
+  const k = hex.toUpperCase(); if (k in OLD_COLORS) hex = CAT_COLORS[OLD_COLORS[k]];
+  if (isLightTheme()) return hex;
+  const n = parseInt(hex.slice(1), 16); const f = v => Math.round(v + (255 - v) * 0.42).toString(16).padStart(2, '0');
+  return `#${f(n >> 16)}${f((n >> 8) & 255)}${f(n & 255)}`;
+};
 /* Textura ASCII decorativa (determinista) */
 function asciiArt(cols = 46, rows = 15, seed = 7) { let x = seed; const rnd = () => { x = (x * 1103515245 + 12345) & 0x7fffffff; return x / 0x7fffffff; }; const chars = ' .:-=+*#%@'; let out = ''; for (let r = 0; r < rows; r++) { let line = ''; for (let c = 0; c < cols; c++) { const dx = (c - cols * .55) / (cols * .45), dy = (r - rows * .5) / (rows * .5); const d = Math.sqrt(dx * dx + dy * dy); const v = Math.max(0, 1 - d) * (0.55 + rnd() * .7); line += chars[Math.min(chars.length - 1, Math.floor(v * chars.length))]; } out += line + '\n'; } return out; }
 
 const ICONS = {
+  scissors: '<circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4 8.1 15.9"/><path d="M14.5 14.5 20 20"/><path d="M8.1 8.1 12 12"/>',
   home: '<path d="M3 11 12 3l9 8"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/>',
   cart: '<circle cx="9" cy="20" r="1.5"/><circle cx="17" cy="20" r="1.5"/><path d="M2 3h3l2.5 11h11L21 7H6"/>',
   car: '<path d="M5 17h14"/><path d="M3 12l2-6h14l2 6v5H3z"/><circle cx="7" cy="17" r="1.5"/><circle cx="17" cy="17" r="1.5"/>',
@@ -119,8 +128,8 @@ function demoData() {
     { id: 'acc_cash', name: 'Efectivo', type: 'efectivo', institution: '', opening: 1200 },
   ];
   d.cards = [
-    { id: 'cc_bbva', name: 'BBVA Azul', institution: 'BBVA', limit: 35000, opening: 800, cutDay: 12, payDay: 2, minPct: 5, rate: 42.9, color: '#8A3B75' },
-    { id: 'cc_nu', name: 'Nu Morada', institution: 'Nu', limit: 12000, opening: 0, cutDay: 20, payDay: 10, minPct: 5, rate: 79, color: '#3F7FBF' },
+    { id: 'cc_bbva', name: 'BBVA Azul', institution: 'BBVA', limit: 35000, opening: 800, cutDay: 12, payDay: 2, minPct: 5, rate: 42.9, color: '#9B2B5A' },
+    { id: 'cc_nu', name: 'Nu Morada', institution: 'Nu', limit: 12000, opening: 0, cutDay: 20, payDay: 10, minPct: 5, rate: 79, color: '#4A2639' },
   ];
   d.debts = [
     { id: 'dt_auto', name: 'Crédito del auto', creditor: 'Santander', original: 180000, initial: 96000, monthly: 4200, payDay: 15, rate: 13.5, start: '2026-06' },
@@ -202,6 +211,6 @@ const S = { data: null, month: thisMonth(), view: 'inicio', filters: {}, histA: 
 function loadData() { try { const raw = localStorage.getItem(DB_KEY); if (raw) { const d = JSON.parse(raw); if (d && d.version === 1) return d; } } catch (e) {} return null; }
 function saveData() { try { localStorage.setItem(DB_KEY, JSON.stringify(S.data)); } catch (e) {} if (typeof cloudSave === 'function') cloudSave(); }
 function byId(list, id) { return (list || []).find(x => x.id === id); }
-function cat(id) { return byId(S.data.categories, id) || { id: 'otros', name: 'Sin categoría', icon: 'dots', color: '#9A93A8', kind: 'gasto' }; }
+function cat(id) { return byId(S.data.categories, id) || { id: 'otros', name: 'Sin categoría', icon: 'dots', color: '#A99A97', kind: 'gasto' }; }
 function accountName(id) { const a = byId(S.data.accounts, id) || byId(S.data.cards, id); return a ? a.name : '—'; }
 function allAccounts() { return [...S.data.accounts.map(a => ({ ...a, isCard: false })), ...S.data.cards.map(c => ({ ...c, isCard: true }))]; }

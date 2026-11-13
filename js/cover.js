@@ -50,19 +50,19 @@ function peonyAt(g, cx, cy, s, rot, pal, seed = 1) {
   g.fillStyle = '#e9c86a'; for (let k = 0; k < 14; k++) { const a = hash(k, seed, 20) * Math.PI * 2, rr = s * .08 * hash(k, seed, 21); g.beginPath(); g.arc(Math.cos(a) * rr, Math.sin(a) * rr, 1.6, 0, Math.PI * 2); g.fill(); }
   g.restore();
 }
-/* Capa de flores: peonía lila, orquídea cobalto, lirio rosa, orquídea pequeña */
+/* Capa de flores: peonía vino, orquídea verde brote, lirio rosa, orquídea pequeña (paleta Pantone) */
 function drawFlowers(W, H, seed = 3) {
   const c = mkCanvas(W, H), g = c.getContext('2d'); const m = Math.min(W, H);
-  peonyAt(g, W * .38, H * .44, m * .26, -.3, ['#6f4a90', '#b18fd4', '#e4d3f2'], seed);
-  orchidAt(g, W * .74, H * .28, m * .19, .5, ['#9fb4ea', '#dbe3fa', '#5a6fb5', '#2f3f7a'], seed + 1);
-  lilyAt(g, W * .7, H * .72, m * .2, .9, ['#e6a6b6', '#f6dde4', '#8f1d43'], seed + 2);
-  orchidAt(g, W * .17, H * .8, m * .12, -1.1, ['#e6a6b6', '#f6d3dc', '#c9506f', '#8f1d43'], seed + 3);
+  peonyAt(g, W * .38, H * .44, m * .26, -.3, ['#7A1E4E', '#C4567F', '#F0D3D8'], seed);
+  orchidAt(g, W * .74, H * .28, m * .19, .5, ['#B9BF4A', '#E6E9B0', '#8C9133', '#5E6128'], seed + 1);
+  lilyAt(g, W * .7, H * .72, m * .2, .9, ['#D98FA0', '#F6DDE2', '#7A1E4E'], seed + 2);
+  orchidAt(g, W * .17, H * .8, m * .12, -1.1, ['#E5C5C8', '#F6E1E2', '#9B2B5A', '#7A1E4E'], seed + 3);
   return c;
 }
 /* Capa de frutas exóticas (mango, pitaya, papaya, higo) muy desenfocadas */
 function drawFruits(W, H, seed = 5) {
   const c = mkCanvas(W, H), g = c.getContext('2d');
-  const fr = [['#e7a24c', '#b44e2a'], ['#e86a8f', '#a83060'], ['#f1c25a', '#c97a2b'], ['#9d78c4', '#5a3d6e'], ['#f0b86a', '#c8612f'], ['#c9506f', '#8f1d43']];
+  const fr = [['#B9BF4A', '#73743A'], ['#D98FA0', '#9B2B5A'], ['#B39E8B', '#6B5240'], ['#9A566D', '#4A2639'], ['#B0B465', '#73743A'], ['#9B2B5A', '#7A1E4E']];
   for (let k = 0; k < 14; k++) { const [c1, c2] = fr[k % fr.length]; const x = hash(k, seed, 1) * W, y = H * .35 + hash(k, seed, 2) * H * .7, r = Math.min(W, H) * (.09 + hash(k, seed, 3) * .14); const gr = g.createRadialGradient(x - r * .3, y - r * .3, r * .1, x, y, r); gr.addColorStop(0, c1); gr.addColorStop(1, c2); g.fillStyle = gr; g.globalAlpha = .9; g.beginPath(); g.ellipse(x, y, r * (1 + hash(k, seed, 4) * .3), r, hash(k, seed, 5) * 3, 0, Math.PI * 2); g.fill(); }
   g.globalAlpha = 1; return c;
 }
@@ -89,7 +89,7 @@ function glitch(src, seed = 1, amount = 1) {
 /* Composición: frutas desenfocadas al fondo, flores en ASCII encima, glitch */
 function drawCover(canvas, seed = 3) {
   const W = 720, H = 720; canvas.width = W; canvas.height = H; const g = canvas.getContext('2d');
-  g.fillStyle = '#1a1220'; g.fillRect(0, 0, W, H);
+  g.fillStyle = '#2A1420'; g.fillRect(0, 0, W, H);
   g.save(); g.filter = 'blur(26px)'; g.globalAlpha = .55; g.drawImage(drawFruits(W, H, seed + 2), 0, 0); g.restore();
   g.save(); g.globalAlpha = .35; g.filter = 'blur(10px)'; g.drawImage(drawFruits(W, H, seed + 9), 0, 0); g.restore();
   const flowers = drawFlowers(W, H, seed);

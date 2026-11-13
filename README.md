@@ -2,7 +2,7 @@
 
 Dashboard mensual de finanzas personales (ingresos, gastos, tarjetas, deudas, compras a meses, recurrentes, presupuestos, calendario e historial). Sin servidor: todo se calcula y se guarda en el navegador (`localStorage`).
 
-Brand: el mismo sistema del Toolbox (Helvetica, fondo crema, cards limpias, botones pill, modo claro/oscuro) con acentos **plum** `#6E2C5B` y **verde** `#1F7A4D`.
+Diseño "jardín de bolsillo": paleta Pantone (Vivacious `#9B2B5A`, Vitality `#7A1E4E`, Malaga `#9A566D`, Veiled Pink `#E5C5C8`, Fragile Sprout `#B9BF4A`, Green Oasis `#B0B465`, Cardamom Seed `#73743A`, Brush `#B39E8B`, Bison `#6B5240`, Pickled Beet `#4A2639`), Instrument Serif itálica para títulos y montos, IBM Plex Mono para texto, tarjetas tipo sticker e ilustraciones en ASCII (portada de flores y frutas, textura del héroe). Arranca en tema claro; el oscuro es vino profundo. Los colores de categorías guardados con la paleta anterior se traducen solos a la nueva (`OLD_COLORS` en `js/store.js`).
 
 ## Archivos
 - `index.html` + `css/app.css` + `js/*.js` — código fuente (para editar).

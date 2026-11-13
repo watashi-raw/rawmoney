@@ -1,6 +1,28 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="8" fill="#1a1220"/>
-  <rect x="1.5" y="1.5" width="61" height="61" rx="7" fill="none" stroke="#c9a2e0" stroke-opacity=".35"/>
-  <text x="19" y="47" font-family="'Instrument Serif','Didot','Bodoni 72',Georgia,'Times New Roman',serif" font-style="italic" font-size="46" fill="#e0c8ef">r</text>
-  <circle cx="45" cy="42" r="3.5" fill="#9fb4ea"/>
+  <defs>
+    <radialGradient id="bg" cx="30%" cy="20%" r="95%"><stop offset="0" stop-color="#7A3A73"/><stop offset=".6" stop-color="#4A2246"/><stop offset="1" stop-color="#2C1228"/></radialGradient>
+    <linearGradient id="fur" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFC27A"/><stop offset="1" stop-color="#F08A3C"/></linearGradient>
+    <path id="claw" d="M-2 0C-2.3-4.2-.6-7.6 2.2-9.4 1.1-6.4 1.2-3.2 2.1 0Z"/>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="url(#bg)"/>
+  <g fill="#FFF1E2">
+    <use href="#claw" transform="translate(13.2 25.6) rotate(-34)"/>
+    <use href="#claw" transform="translate(24.4 13.4) rotate(-12)"/>
+    <use href="#claw" transform="translate(39.6 13.4) rotate(12) scale(-1 1)"/>
+    <use href="#claw" transform="translate(50.8 25.6) rotate(34) scale(-1 1)"/>
+  </g>
+  <g fill="url(#fur)">
+    <ellipse cx="16" cy="32" rx="4.9" ry="6.2" transform="rotate(-30 16 32)"/>
+    <ellipse cx="25.6" cy="21.2" rx="5.2" ry="6.8" transform="rotate(-10 25.6 21.2)"/>
+    <ellipse cx="38.4" cy="21.2" rx="5.2" ry="6.8" transform="rotate(10 38.4 21.2)"/>
+    <ellipse cx="48" cy="32" rx="4.9" ry="6.2" transform="rotate(30 48 32)"/>
+    <path d="M32 30.5c7 0 13.8 6.8 15.3 13.2 1.3 6-3 9.8-8 8.8-2.7-.5-4.3-1.9-7.3-1.9s-4.6 1.4-7.3 1.9c-5 1-9.3-2.8-8-8.8C18.2 37.3 25 30.5 32 30.5z"/>
+  </g>
+  <g fill="#3D1A36">
+    <path d="M16.9 40.6c3.8-.6 7.3.4 9.6 2.7-3-.4-6.1-.1-10.2 1.1z"/>
+    <path d="M47.1 40.6c-3.8-.6-7.3.4-9.6 2.7 3-.4 6.1-.1 10.2 1.1z"/>
+    <path d="M29.4 31c1.6 2.3 2.1 4.8 1.8 7.4 1.6-2.4 2.6-4.9 3.6-7.5-1.8-.3-3.6-.3-5.4.1z"/>
+    <path d="M18.6 47.8c2.6-.9 5-.9 7.2.1-2.4.4-4.6 1.2-6.6 2.4z"/>
+    <path d="M45.4 47.8c-2.6-.9-5-.9-7.2.1 2.4.4 4.6 1.2 6.6 2.4z"/>
+  </g>
 </svg>

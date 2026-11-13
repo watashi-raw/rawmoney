@@ -28,7 +28,7 @@ function readForm(form) {
 const F = {
   text: (n, l, v = '', ph = '', extra = '') => `<div class="f"><label for="fx-${n}">${l}</label><input class="inp" id="fx-${n}" name="${n}" value="${esc(v)}" placeholder="${esc(ph)}" ${extra}></div>`,
   num: (n, l, v = '', ph = '', extra = '') => `<div class="f"><label for="fx-${n}">${l}</label><input class="inp" id="fx-${n}" name="${n}" type="number" inputmode="decimal" step="any" value="${v ?? ''}" placeholder="${esc(ph)}" ${extra}></div>`,
-  amount: (n, v = '') => `<div class="f"><label for="fx-${n}">Monto (MXN)</label><input class="inp amount" id="fx-${n}" name="${n}" type="number" inputmode="decimal" step="any" min="0" value="${v ?? ''}" placeholder="0" required></div>`,
+  amount: (n, v = '') => `<div class="f amt-f"><label for="fx-${n}">Monto</label><div class="amt-box"><span class="amt-cur" aria-hidden="true">$</span><input class="inp amount" id="fx-${n}" name="${n}" type="number" inputmode="decimal" step="any" min="0" value="${v ?? ''}" placeholder="0" required><span class="amt-code" aria-hidden="true">MXN</span></div><div class="amt-quick" role="group" aria-label="Sumar rápido">${[50, 100, 500, 1000].map(x => `<button type="button" data-plus="${x}">+${x.toLocaleString('es-MX')}</button>`).join('')}<button type="button" data-plus="0" class="clr">Borrar</button></div></div>`,
   date: (n, l, v) => `<div class="f"><label for="fx-${n}">${l}</label><input class="inp" id="fx-${n}" name="${n}" type="date" value="${v || todayISO()}"></div>`,
   month: (n, l, v) => `<div class="f"><label for="fx-${n}">${l}</label><input class="inp" id="fx-${n}" name="${n}" type="month" value="${v || thisMonth()}"></div>`,
   sel: (n, l, opts, v, hint = '') => `<div class="f" data-f="${n}"><label for="fx-${n}">${l}</label><select class="sel" id="fx-${n}" name="${n}">${opts.map(([k, t]) => `<option value="${k}"${String(k) === String(v) ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select>${hint ? `<div class="hint">${hint}</div>` : ''}</div>`,
@@ -42,6 +42,36 @@ const catOpts = kind => S.data.categories.filter(c => c.kind === kind).map(c => 
 const accOpts = () => S.data.accounts.map(a => [a.id, a.name]);
 const cardOpts = () => S.data.cards.map(c => [c.id, c.name]);
 const allAccOpts = () => [...S.data.accounts.map(a => [a.id, a.name]), ...S.data.cards.map(c => [c.id, `${c.name} (crédito)`])];
+/* Opción para crear un concepto nuevo sin salir del formulario */
+const NEW_CAT = '__new';
+const catOptsNew = kind => [...catOpts(kind), [NEW_CAT, '+ Nueva categoría…']];
+const newCatBox = () => `<div class="newcat" hidden><div class="f"><label for="fx-newcat">Nueva categoría</label><input class="inp" id="fx-newcat" placeholder="Ej. Café, Regalos, Clases…" maxlength="40" autocomplete="off"></div><div class="swatches sm">${CAT_COLORS.slice(0, 12).map(c => `<button type="button" class="sw" data-c="${c}" style="--c:${c}" aria-label="Color"></button>`).join('')}</div><div class="newcat-acts"><button type="button" class="btn quiet sm" data-nc="cancel">Cancelar</button><button type="button" class="btn primary sm" data-nc="ok">${icon('plus')}Crear y usar</button></div></div>`;
+function bindNewCat(form, kindOf) {
+  const sel = form.querySelector('[name=categoryId]'); const box = form.querySelector('.newcat'); const inp = box.querySelector('#fx-newcat');
+  let prev = sel.value, color = null;
+  const pickColor = c => { color = c; box.querySelectorAll('.sw').forEach(b => b.classList.toggle('on', b.dataset.c === c)); };
+  const close = () => { box.hidden = true; inp.value = ''; };
+  sel.addEventListener('focus', () => { if (sel.value !== NEW_CAT) prev = sel.value; });
+  sel.addEventListener('change', () => {
+    if (sel.value !== NEW_CAT) { prev = sel.value; return; }
+    sel.value = prev; box.hidden = false;
+    const used = new Set(S.data.categories.map(c => c.color)); pickColor(CAT_COLORS.find(c => !used.has(c)) || CAT_COLORS[S.data.categories.length % 12]);
+    inp.focus();
+  });
+  box.querySelectorAll('.sw').forEach(b => b.addEventListener('click', () => pickColor(b.dataset.c)));
+  const create = () => {
+    const name = inp.value.trim(); if (!name) { toast('Escribe el nombre de la categoría'); inp.focus(); return; }
+    const kind = kindOf();
+    let c = S.data.categories.find(x => x.kind === kind && x.name.toLowerCase() === name.toLowerCase());
+    if (!c) { c = { id: uid(), name, icon: kind === 'ingreso' ? 'wallet' : 'dots', color, kind }; S.data.categories.push(c); saveData(); toast(`Categoría “${name}” creada`); }
+    else toast(`“${c.name}” ya existía, la elegí`);
+    sel.innerHTML = catOptsNew(kind).map(([k, n]) => `<option value="${k}">${esc(n)}</option>`).join(''); sel.value = c.id; prev = c.id; close();
+  };
+  box.querySelector('[data-nc=ok]').addEventListener('click', create);
+  box.querySelector('[data-nc=cancel]').addEventListener('click', () => { close(); sel.focus(); });
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); create(); } if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); sel.focus(); } });
+  return close;
+}
 function need(form, ok, msg) { if (!ok) { toast(msg); return false; } return true; }
 
 /* ---------- Movimiento ---------- */
@@ -51,13 +81,14 @@ function formTx(t, preset = {}) {
     ${F.seg('type', Object.entries(TYPES), v.type)}
     ${F.amount('amount', v.amount)}
     <div class="fr">${F.date('date', 'Fecha', v.date)}${F.text('desc', 'Descripción', v.desc, 'Ej. Súper, Gasolina…', 'required')}</div>
-    ${F.sel('categoryId', 'Categoría', catOpts(v.type === 'ingreso' ? 'ingreso' : 'gasto'), v.categoryId)}
+    ${F.sel('categoryId', 'Categoría', catOptsNew(v.type === 'ingreso' ? 'ingreso' : 'gasto'), v.categoryId)}
+    ${newCatBox()}
     ${F.sel('method', 'Método de pago', Object.entries(METHODS), v.method)}
     ${F.sel('accountId', 'Cuenta o tarjeta', allAccOpts(), v.accountId, 'Si usas tarjeta de crédito, elige la tarjeta y el método “Crédito”.')}
     ${F.sel('targetId', 'Destino', [], v.targetId)}
     ${F.toggle('fixed', 'Es un gasto fijo (renta, servicios, mensualidades…)', v.fixed)}
     ${F.area('notes', 'Notas (opcional)', v.notes)}`;
-  const dr = openDrawer({ title: isNew ? 'Nuevo movimiento' : 'Editar movimiento', eyebrow: isNew ? 'Registrar' : dateLong(v.date), body, saveLabel: isNew ? 'Registrar' : 'Guardar cambios',
+  const dr = openDrawer({ title: isNew ? ({ gasto: '¿Qué gastaste?', ingreso: '¿Cuánto entró?', pago_tarjeta: 'Pago de tarjeta', pago_deuda: 'Abono a una deuda', ahorro: '¿Cuánto apartaste?', transferencia: 'Mover entre cuentas' }[v.type] || 'Nuevo movimiento') : 'Editar movimiento', eyebrow: isNew ? 'Registrar' : dateLong(v.date), body, saveLabel: isNew ? 'Registrar' : 'Guardar cambios',
     onSave: (o, form) => {
       if (!need(form, o.amount > 0, 'Escribe un monto mayor a cero')) return; if (!need(form, o.desc, 'Escribe una descripción')) return;
       const isCard = !!byId(S.data.cards, o.accountId);
@@ -69,22 +100,23 @@ function formTx(t, preset = {}) {
       if (o.type !== 'gasto') o.fixed = false;
       if (!['transferencia', 'pago_tarjeta', 'pago_deuda'].includes(o.type)) o.targetId = null;
       if (o.type === 'ingreso' && o.method === 'credito') o.method = 'transferencia';
-      if (isNew) { S.data.transactions.push({ id: uid(), ...o }); toast(o.type === 'ingreso' ? 'Ingreso registrado' : 'Movimiento registrado'); }
+      if (isNew) { S.data.transactions.push({ id: uid(), ...o }); toast(o.type === 'ingreso' ? 'Ingreso registrado' : 'Movimiento registrado'); dispatchEvent(new CustomEvent('rm:tx', { detail: o })); }
       else { Object.assign(t, o); toast('Cambios guardados'); }
       saveData(); closeDrawer(); render();
     },
     onDelete: isNew ? null : () => confirmBox('¿Eliminar este movimiento?', t.recurringId ? 'Es un gasto recurrente: solo se quitará de este mes.' : 'Esta acción no se puede deshacer.', () => { if (t.recurringId) S.data.skips.push(t.id); S.data.transactions = S.data.transactions.filter(x => x.id !== t.id); saveData(); closeDrawer(); render(); toast('Movimiento eliminado'); }) });
   const form = dr.querySelector('form');
+  const closeNewCat = bindNewCat(form, () => form.querySelector('[name=type]:checked').value === 'ingreso' ? 'ingreso' : 'gasto');
   const sync = () => {
     const type = form.querySelector('[name=type]:checked').value; const method = form.querySelector('[name=method]');
     const show = (n, on) => { const el = form.querySelector(`[data-f="${n}"]`); if (el) el.hidden = !on; };
-    show('categoryId', type === 'gasto' || type === 'ingreso'); show('method', type === 'gasto');
+    show('categoryId', type === 'gasto' || type === 'ingreso'); if (!(type === 'gasto' || type === 'ingreso')) closeNewCat(); show('method', type === 'gasto');
     show('targetId', ['transferencia', 'pago_tarjeta', 'pago_deuda'].includes(type));
     form.querySelector('.toggle').hidden = type !== 'gasto';
     form.querySelector('label[for=fx-accountId]').textContent = type === 'transferencia' ? 'Desde la cuenta' : type === 'gasto' ? 'Cuenta o tarjeta' : type === 'ingreso' ? 'Cuenta donde entra' : 'Cuenta desde la que pagas';
     // categorías por tipo
     const cs = form.querySelector('[name=categoryId]'); const kind = type === 'ingreso' ? 'ingreso' : 'gasto';
-    if (cs.dataset.kind !== kind) { const cur = cs.value; cs.innerHTML = catOpts(kind).map(([k, n]) => `<option value="${k}">${esc(n)}</option>`).join(''); cs.dataset.kind = kind; if ([...cs.options].some(o => o.value === cur)) cs.value = cur; else if (kind === 'ingreso') cs.value = 'sueldo'; }
+    if (cs.dataset.kind !== kind) { const cur = cs.value; closeNewCat(); cs.innerHTML = catOptsNew(kind).map(([k, n]) => `<option value="${k}">${esc(n)}</option>`).join(''); cs.dataset.kind = kind; if ([...cs.options].some(o => o.value === cur)) cs.value = cur; else if (kind === 'ingreso') cs.value = 'sueldo'; }
     // cuentas: sólo débito/efectivo salvo gasto
     const as = form.querySelector('[name=accountId]'); const cur = as.value; const opts = type === 'gasto' ? allAccOpts() : accOpts();
     as.innerHTML = opts.map(([k, n]) => `<option value="${k}">${esc(n)}</option>`).join(''); if (opts.some(o => o[0] === cur)) as.value = cur;
@@ -101,7 +133,7 @@ function formTx(t, preset = {}) {
 
 /* ---------- Tarjeta ---------- */
 function formCard(c) {
-  const isNew = !c; const v = { cutDay: 15, payDay: 5, minPct: 5, color: '#8A3B75', opening: 0, ...(c || {}) };
+  const isNew = !c; const v = { cutDay: 15, payDay: 5, minPct: 5, color: '#9B2B5A', opening: 0, ...(c || {}) };
   const body = `<div class="fr">${F.text('name', 'Nombre', v.name, 'Ej. BBVA Azul', 'required')}${F.text('institution', 'Institución', v.institution, 'Ej. BBVA')}</div>
     <div class="fr">${F.num('limit', 'Límite de crédito', v.limit, '20000', 'required')}${F.num('opening', isNew ? 'Saldo actual (lo que debes hoy)' : 'Saldo inicial registrado', v.opening, '0')}</div>
     <div class="fr">${F.num('cutDay', 'Día de corte', v.cutDay, '15', 'min="1" max="31"')}${F.num('payDay', 'Día límite de pago', v.payDay, '5', 'min="1" max="31"')}</div>
@@ -206,3 +238,17 @@ function formAccount(a) {
     onSave: (o, f) => { if (!need(f, o.name, 'Escribe el nombre')) return; o.opening = o.opening || 0; if (isNew) S.data.accounts.push({ id: uid(), ...o }); else Object.assign(a, o); saveData(); closeDrawer(); render(); toast('Cuenta guardada'); },
     onDelete: isNew ? null : () => confirmBox(`¿Eliminar ${a.name}?`, 'Los movimientos se conservan.', () => { S.data.accounts = S.data.accounts.filter(x => x.id !== a.id); saveData(); closeDrawer(); render(); toast('Cuenta eliminada'); }) });
 }
+
+/* Monto: botones de suma rápida con animación */
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-plus]'); if (!b) return;
+  const box = b.closest('.amt-f'), inp = box && box.querySelector('input.amount'); if (!inp) return;
+  const add = Number(b.dataset.plus); const from = Number(inp.value) || 0; const to = add ? Math.round((from + add) * 100) / 100 : 0;
+  const wrap = box.querySelector('.amt-box'); wrap.classList.remove('bump'); void wrap.offsetWidth; wrap.classList.add('bump');
+  const fire = () => inp.dispatchEvent(new Event('input', { bubbles: true }));
+  let reduce = false; try { reduce = matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (err) {}
+  if (!add || reduce) { inp.value = add ? to : ''; fire(); inp.focus(); return; }
+  cancelAnimationFrame(inp._raf); const t0 = performance.now();
+  const step = t => { const k = Math.min(1, (t - t0) / 380), ease = 1 - Math.pow(1 - k, 3); inp.value = k < 1 ? Math.round(from + (to - from) * ease) : to; if (k < 1) inp._raf = requestAnimationFrame(step); else fire(); };
+  inp._raf = requestAnimationFrame(step);
+});

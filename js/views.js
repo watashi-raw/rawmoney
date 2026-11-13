@@ -6,6 +6,10 @@ const KIND_LABEL = { tarjeta: 'Tarjeta', deuda: 'Deuda', recurrente: 'Recurrente
 const statusTag = s => ({ pagado: '<span class="tag good">Pagado</span>', parcial: '<span class="tag warn">Parcial</span>', vencido: '<span class="tag bad">Vencido</span>', pendiente: '<span class="tag warn">Pendiente</span>' }[s] || '');
 const deltaTag = d => d == null ? '<span class="delta new">nuevo</span>' : Math.abs(d) < 1 ? '<span class="delta">=</span>' : d > 0 ? `<span class="delta up">+${Math.round(d)}%</span>` : `<span class="delta down">${Math.round(d)}%</span>`;
 const isPast = ym => ym < thisMonth();
+/* Logo: la r itálica con su punto, como el favicon */
+const LOGO = { toString: () => `<span class="mark tiger" aria-hidden="true">${tigerSvg()}</span>` }; // un SVG con ids únicos cada vez que se pinta
+/* Lo que se puede registrar: [acción, título, ayuda, ícono, tono] */
+const ADD_OPTS = [['new-gasto', 'Gasté', 'Una compra o un pago', 'bag', 'berry'], ['new-ingreso', 'Me pagaron', 'Sueldo, venta, regalo', 'arrowDown', 'sprout'], ['new-pago-tarjeta', 'Pagué la tarjeta', 'Abono a tu tarjeta', 'card', 'malaga'], ['new-pago-deuda', 'Abono a una deuda', 'Préstamo o crédito', 'bank', 'bison'], ['new-ahorro', 'Ahorré', 'Apartar dinero', 'piggy', 'oasis'], ['new-transfer', 'Moví dinero', 'Entre mis cuentas', 'swap', 'brush']];
 
 function txRow(t, click = true) {
   const c = t.type === 'gasto' || t.type === 'ingreso' ? cat(t.categoryId) : null;
@@ -18,6 +22,8 @@ function txRow(t, click = true) {
 }
 
 /* ---------- INICIO ---------- */
+const daysUntil = iso => Math.round((new Date(iso + 'T12:00') - new Date(todayISO() + 'T12:00')) / 864e5);
+const whenLabel = iso => { const d = daysUntil(iso); return d < 0 ? `hace ${-d} día${d === -1 ? '' : 's'}` : d === 0 ? 'hoy' : d === 1 ? 'mañana' : `en ${d} días`; };
 function viewInicio() {
   const ym = S.month; const s = monthSummary(ym); const rank = categoryRanking(ym).slice(0, 5);
   const bud = budgetStatus(ym).slice(0, 4);
@@ -26,20 +32,31 @@ function viewInicio() {
   const upcoming = monthEvents(ym).filter(e => e.kind !== 'corte' && !e.paid && (ym > thisMonth() || e.date >= today)).slice(0, 6);
   const donutItems = rank.map(r => ({ label: r.cat.name, value: r.v, color: col(r.cat.color), key: r.cat.id }));
   const rest = categoryRanking(ym).slice(5); if (rest.length) donutItems.push({ label: 'Otras', value: sum(rest, r => r.v), color: col(OTHERS_COLOR), key: 'rest' });
-  const past = isPast(ym);
+  const past = isPast(ym), cur = ym === thisMonth(), mes = MESES[Number(ym.slice(5)) - 1];
+  const dLeft = cur ? daysIn(ym) - Number(todayISO().slice(8)) + 1 : past ? 0 : daysIn(ym);
+  const perDay = dLeft && s.queda > 0 ? s.queda / dLeft : 0;
+  const usedPct = s.ingresos ? Math.min(100, Math.max(0, (s.ingresos - s.queda) / s.ingresos * 100)) : 0;
+  const over = s.queda < 0, noIn = !s.ingresos;
+  const say = noIn && over ? `Aún no registras lo que te pagaron en ${mes}. Cuando lo hagas, aquí verás cuánto te queda.` : over ? `Entre gastos y pagos salió más de lo que entró en ${mes}. Mira abajo en qué se fue.`
+    : cur ? `para los ${dLeft} día${dLeft === 1 ? '' : 's'} que faltan de ${mes}.${perDay ? ` Son unos <b>${money0(perDay)}</b> al día.` : ''}`
+    : past ? `fue lo que sobró en ${mes}.` : `para ${mes}, si todo sale como está planeado.`;
   return `
-  <div class="ph"><div><div class="eyebrow">${past ? 'Cierre de' : 'Tu mes ·'} ${monthLabel(ym)}</div><h1>${past ? 'Así te fue' : 'Así vas'} en ${MESES[Number(ym.slice(5)) - 1]}</h1></div>
-    <div class="quick"><button class="btn primary" data-act="new-gasto">${icon('plus')}<span>Registrar gasto</span></button><button class="btn green" data-act="new-ingreso">${icon('plus')}<span>Registrar ingreso</span></button><button class="btn secondary" data-act="new-tarjeta">${icon('card')}<span>Agregar tarjeta</span></button><button class="btn secondary" data-act="new-deuda">${icon('bank')}<span>Agregar deuda</span></button></div></div>
-  <section class="hero">
-    <div class="ghost" aria-hidden="true">/${ym.slice(5)}</div><pre class="ascii" aria-hidden="true">${asciiArt()}</pre>
-    <div class="hl"><div class="eyebrow">Tengo en cuentas</div><div class="big num">${money0(s.disponibleCuentas)}</div><div class="sm">${S.data.accounts.map(a => `${esc(a.name)} ${money0(accountBalance(a, ym))}`).join(' · ') || 'Agrega una cuenta en Ajustes'}</div></div>
+  <div class="ph"><div><div class="eyebrow">${past ? 'Así cerró' : cur ? 'Hoy, ' + dateLong(todayISO()) : 'Mirando adelante'}</div><h1 class="squig">${past ? 'Así te fue' : 'Así vas'} en ${mes}</h1></div></div>
+  <section class="hero${over && !noIn ? ' over' : ''}">
+    <div class="hl">
+      <pre class="ascii" aria-hidden="true">${asciiArt(40, 13, 7)}</pre>
+      <div class="eyebrow">${noIn && over ? 'Han salido' : over ? 'Te pasaste por' : 'Te quedan'}</div>
+      <div class="big num">${money0(Math.abs(s.queda))}</div>
+      <p class="say">${say}</p>
+      ${s.ingresos ? `<div class="meter" role="img" aria-label="Usaste ${pct(usedPct)} de lo que entró"><i style="width:${usedPct}%"></i></div><div class="meter-l"><span>Ya usaste ${pct(usedPct)} de lo que entró</span><span>Entró ${money0(s.ingresos)}</span></div>` : noIn && over ? '' : '<p class="say">Registra lo que te pagaron este mes y aquí verás cuánto te queda.</p>'}
+    </div>
     <div class="stub">
-      <div class="ledger lead"><span>Me queda este mes</span><i></i><b class="num${s.queda < 0 ? '' : ' g'}">${money0(s.queda)}</b></div>
-      <div class="ledger"><span>Comprometido</span><i></i><b class="num">${money0(s.comprometido)}</b></div>
-      <div class="ledger"><span>Ahorro del mes</span><i></i><b class="num">${money0(s.ahorro)}</b></div>
-      <div class="note">${s.compItems.length ? `${s.compItems.length} pago${s.compItems.length > 1 ? 's' : ''} por hacer · ` : 'Nada pendiente este mes · '}me queda = ingresos − gastos pagados − pagos − ahorro</div>
+      <div class="ledger"><span>${icon('wallet')}Tengo en cuentas</span><b class="num">${money0(s.disponibleCuentas)}</b><small>${S.data.accounts.map(a => `${esc(a.name)} ${money0(accountBalance(a, ym))}`).join(' · ') || 'Agrega una cuenta en Ajustes'}</small></div>
+      <div class="ledger"><span>${icon('cal')}Por pagar este mes</span><b class="num">${money0(s.comprometido)}</b><small>${s.compItems.length ? `${s.compItems.length} pago${s.compItems.length > 1 ? 's' : ''} pendiente${s.compItems.length > 1 ? 's' : ''}` : 'Nada pendiente, qué paz'}</small></div>
+      <div class="ledger"><span>${icon('piggy')}Ahorré este mes</span><b class="num">${money0(s.ahorro)}</b><small>${S.data.savingsGoal ? `Meta ${money0(S.data.savingsGoal)} · llevas ${pct(Math.min(100, s.ahorro / S.data.savingsGoal * 100))}` : `${pct(s.ahorroPct)} de lo que entró`}</small></div>
     </div>
   </section>
+  <section class="quickgrid" aria-label="Registrar">${ADD_OPTS.slice(0, 4).map(([act, tt, sub, ic, tone]) => `<button class="addopt" data-act="${act}" style="--tone:var(--${tone})"><span class="blob">${icon(ic)}</span><b>${tt}</b><small>${sub}</small></button>`).join('')}<button class="addopt more" data-act="add"><span class="blob">${icon('more')}</span><b>Otra cosa</b><small>Ahorro, transferencia…</small></button></section>
   <section class="stats g4">
     <div class="stat pos"><div class="lb"><i></i>Ingresos</div><div class="v num">${money0(s.ingresos)}</div><div class="s">${s.count ? 'recibidos este mes' : 'sin movimientos'}</div></div>
     <div class="stat"><div class="lb"><i></i>Gastos</div><div class="v num">${money0(s.gastosTotal)}</div><div class="s"><b>${money0(s.fijos)}</b> fijos · <b>${money0(s.variables)}</b> variables</div></div>
@@ -51,7 +68,7 @@ function viewInicio() {
       ${s.gastosTotal ? `<div class="donutwrap">${donutSVG(donutItems, 'gastado', money0(s.gastosTotal))}<div class="legend">${donutItems.map(i => `<div class="l" data-key="${i.key}" style="--cat:${i.color}"><i></i><span>${esc(i.label)}</span><b>${money0(i.value)}</b><em>${pct(i.value / s.gastosTotal * 100)}</em></div>`).join('')}</div></div>` : '<div class="empty"><h3>Aún no hay gastos</h3><p>Registra tu primer gasto y aquí verás la distribución.</p></div>'}
     </div>
     <div class="card"><div class="ch"><h2>Próximos pagos</h2><button class="lnk" data-go="calendario">Calendario</button></div>
-      <div class="list">${upcoming.length ? upcoming.map(e => `<div class="row"><span class="ic" style="--cat:${KIND_COLOR[e.kind]};--cat-soft:color-mix(in srgb, ${KIND_COLOR[e.kind]} 14%, var(--surface))">${icon(e.kind === 'tarjeta' ? 'card' : e.kind === 'deuda' ? 'bank' : e.kind === 'meses' ? 'layers' : 'repeat')}</span><div class="tx"><b>${esc(e.name)}</b><span>${dateLong(e.date)} · ${KIND_LABEL[e.kind]}</span></div><div class="am att">${e.amount != null ? money0(e.amount) : ''}</div></div>`).join('') : '<div class="empty"><h3>Sin pagos pendientes</h3><p>Todo lo de este mes ya está cubierto.</p></div>'}</div>
+      <div class="list">${upcoming.length ? upcoming.map(e => `<div class="row"><span class="ic" style="--cat:${KIND_COLOR[e.kind]};--cat-soft:color-mix(in srgb, ${KIND_COLOR[e.kind]} 14%, var(--surface))">${icon(e.kind === 'tarjeta' ? 'card' : e.kind === 'deuda' ? 'bank' : e.kind === 'meses' ? 'layers' : 'repeat')}</span><div class="tx"><b>${esc(e.name)}</b><span>${dateLong(e.date)} · ${KIND_LABEL[e.kind]}</span></div><div class="am">${e.amount != null ? money0(e.amount) : ''}<small class="when${daysUntil(e.date) <= 3 ? ' soon' : ''}">${whenLabel(e.date)}</small></div></div>`).join('') : '<div class="empty"><h3>Sin pagos pendientes</h3><p>Todo lo de este mes ya está cubierto.</p></div>'}</div>
     </div>
   </section>
   <section class="g2">
@@ -133,10 +150,10 @@ function viewGastos() {
 
 /* ---------- TARJETAS ---------- */
 function ccCard(c, ym) {
-  const m = cardMonth(c, ym); const col = m.util > 70 ? 'b' : m.util > 40 ? 'w' : 'g';
-  return `<div class="cc" data-card="${c.id}"><div class="hd"><div><div class="nm">${esc(c.name)}</div><div class="inst">${esc(c.institution || '')}${c.rate ? ` · ${c.rate}% anual` : ''}</div></div><div class="chipx" style="background:linear-gradient(135deg, ${c.color || 'var(--plum)'}, color-mix(in srgb, ${c.color || 'var(--plum)'} 40%, var(--surface)))"></div></div>
+  const m = cardMonth(c, ym); const tone = m.util > 70 ? 'b' : m.util > 40 ? 'w' : 'g';
+  return `<div class="cc" data-card="${c.id}"><div class="hd"><div><div class="nm">${esc(c.name)}</div><div class="inst">${esc(c.institution || '')}${c.rate ? ` · ${c.rate}% anual` : ''}</div></div><div class="chipx" style="--cc:${col(c.color || '#9B2B5A')}"></div></div>
     <div><div class="eyebrow">Saldo actual</div><div class="used num">${money0(m.bal)}<small>de ${money0(c.limit)}</small></div></div>
-    <div class="pct"><div class="bar ${col}"><i style="width:${Math.min(100, m.util)}%"></i></div><span class="num">${pct(m.util)}</span></div>
+    <div class="pct"><div class="bar ${tone}"><i style="width:${Math.min(100, m.util)}%"></i></div><span class="num">${pct(m.util)}</span></div>
     <div class="kv"><div><span>Disponible</span><b class="pos">${money0(m.available)}</b></div><div><span>Corte</span><b>día ${c.cutDay}</b></div><div><span>Pago mínimo</span><b>${money0(m.minPay)}</b></div><div><span>Para no generar intereses</span><b>${money0(m.noInterest)}</b></div></div>
     <div class="pay"><div><div class="eyebrow">Próximo pago · ${dateLabel(m.payDate)}</div><b class="num">${money0(Math.max(0, Math.min(m.noInterest, m.prev) - m.paid))}</b>${m.paid ? ` <span class="mut">· pagado ${money0(m.paid)}</span>` : ''}</div>${statusTag(m.status)}</div></div>`;
 }
@@ -317,4 +334,4 @@ const VIEWS = {
   categorias: { title: 'Categorías', icon: 'grid', fn: viewCategorias },
   ajustes: { title: 'Cuentas y ajustes', icon: 'tools', fn: viewAjustes, bind: bindAjustes },
 };
-const NAV_GROUPS = [['Mi mes', ['inicio', 'movimientos', 'gastos', 'resumen', 'historial']], ['Obligaciones', ['tarjetas', 'deudas', 'recurrentes', 'calendario']], ['Planear', ['presupuesto', 'categorias', 'ajustes']]];
+const NAV_GROUPS = [['Mi mes', ['inicio', 'movimientos', 'gastos', 'resumen', 'historial']], ['Lo que debo', ['tarjetas', 'deudas', 'recurrentes', 'calendario']], ['Mis reglas', ['presupuesto', 'categorias', 'ajustes']]];

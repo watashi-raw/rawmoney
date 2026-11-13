@@ -5,8 +5,8 @@ function confirmBox(title, text, onOk, okLabel = 'Eliminar') {
   const m = document.createElement('div'); m.className = 'modal'; m.innerHTML = `<div class="box" role="alertdialog"><h3>${esc(title)}</h3><p>${esc(text)}</p><div class="acts"><button class="btn quiet" data-no>Cancelar</button><button class="btn ${okLabel === 'Eliminar' || okLabel === 'Borrar' ? 'danger' : 'primary'}" data-ok>${okLabel}</button></div></div>`;
   document.body.appendChild(m); m.querySelector('[data-no]').addEventListener('click', () => m.remove()); m.addEventListener('click', e => { if (e.target === m) m.remove(); }); m.querySelector('[data-ok]').addEventListener('click', () => { m.remove(); onOk(); }); m.querySelector('[data-ok]').focus();
 }
-function applyTheme() { let t = null; try { t = localStorage.getItem('midinero.theme'); } catch (e) {} document.documentElement.dataset.theme = t || 'dark'; }
-function toggleTheme() { const root = document.documentElement; root.dataset.theme = isLightTheme() ? 'dark' : 'light'; try { localStorage.setItem('midinero.theme', root.dataset.theme); } catch (e) {} render(); }
+function applyTheme() { let t = null; try { t = localStorage.getItem('rawmoney.theme'); } catch (e) {} document.documentElement.dataset.theme = t || 'light'; }
+function toggleTheme() { const root = document.documentElement; root.dataset.theme = isLightTheme() ? 'dark' : 'light'; try { localStorage.setItem('rawmoney.theme', root.dataset.theme); } catch (e) {} render(); }
 async function exportJSON() {
   const json = JSON.stringify(S.data, null, 2); const filename = `raw-money-${todayISO()}.json`;
   if (window.claude && typeof window.claude.use === 'function') {
@@ -25,6 +25,8 @@ const ACTIONS = {
   'new-gasto': () => formTx(null, { type: 'gasto' }), 'new-ingreso': () => formTx(null, { type: 'ingreso', categoryId: 'sueldo', method: 'transferencia' }),
   'new-tarjeta': () => formCard(null), 'new-deuda': () => formDebt(null), 'new-meses': () => formInstallment(null), 'new-rec': () => formRecurring(null), 'new-cat': () => formCategory(null), 'new-acc': () => formAccount(null), 'new-budget': () => formBudget(null),
   'new-pago-tarjeta': () => formTx(null, { type: 'pago_tarjeta', targetId: (S.data.cards[0] || {}).id, method: 'transferencia' }), 'new-pago-deuda': () => formTx(null, { type: 'pago_deuda', targetId: (S.data.debts[0] || {}).id, method: 'transferencia' }),
+  'new-ahorro': () => formTx(null, { type: 'ahorro', method: 'transferencia' }), 'new-transfer': () => formTx(null, { type: 'transferencia', method: 'transferencia', targetId: (S.data.accounts[1] || {}).id }),
+  'add': () => openAddSheet(),
   'export': exportJSON,
   'clear-demo': () => confirmBox('¿Borrar los datos de demostración?', 'Se eliminan movimientos, tarjetas, deudas y recurrentes de ejemplo. Las categorías se quedan para que empieces desde cero.', () => { S.data = emptyData(); saveData(); S.month = thisMonth(); render(); toast('Listo, empieza desde cero'); }, 'Borrar'),
   'load-demo': () => confirmBox('¿Cargar datos de demostración?', 'Reemplaza lo que tienes ahora por los datos de ejemplo.', () => { S.data = demoData(); saveData(); S.month = thisMonth(); render(); toast('Datos demo cargados'); }, 'Cargar'),
@@ -42,24 +44,36 @@ function openSheet() {
   sh.querySelector('[data-act=theme]').addEventListener('click', () => { toggleTheme(); });
 }
 
+/* Menú de "¿Qué pasó?": todo lo que se puede registrar, en palabras sencillas */
+function openAddSheet() {
+  closeDrawer();
+  const veil = document.createElement('div'); veil.className = 'veil'; veil.addEventListener('click', closeDrawer);
+  const sh = document.createElement('div'); sh.className = 'sheet add'; sh.setAttribute('role', 'dialog'); sh.setAttribute('aria-label', 'Registrar');
+  sh.innerHTML = `<div class="grab"></div><h2>¿Qué pasó con tu dinero?</h2><div class="addgrid">${ADD_OPTS.map(([act, t, sub, ic, tone]) => `<button class="addopt" data-add="${act}" style="--tone:var(--${tone})"><span class="blob">${icon(ic)}</span><b>${t}</b><small>${sub}</small></button>`).join('')}</div>`;
+  document.body.append(veil, sh);
+  sh.querySelectorAll('[data-add]').forEach(b => b.addEventListener('click', () => { closeDrawer(); ACTIONS[b.dataset.add](); }));
+  document.addEventListener('keydown', escClose);
+  sh.querySelector('[data-add]').focus();
+}
+
 function shell() {
   const navHtml = NAV_GROUPS.map(([g, keys]) => `<div class="grp">${g}</div>${keys.map(k => `<a href="#${k}" data-nav="${k}" class="${S.view === k ? 'on' : ''}">${icon(VIEWS[k].icon)}${VIEWS[k].title}</a>`).join('')}`).join('');
   return `
-  <aside class="side"><a class="logo" href="#inicio"><i>$</i><span>Raw Money<small>finanzas personales</small></span></a><nav class="nav">${navHtml}</nav>
+  <aside class="side"><a class="logo" href="#inicio">${LOGO}<span>Raw Money<small>tu dinero, sin drama</small></span></a><button class="btn primary addbtn" data-act="add">${icon('plus')}Registrar algo</button><nav class="nav">${navHtml}</nav>
     <div class="foot">${S.data.demo ? '<div class="demo"><b>●</b> Datos de demostración</div>' : ''}${typeof CLOUD !== 'undefined' && CLOUD.enabled ? `<div class="demo"><i class="cloud-dot ${CLOUD.user ? 'on' : ''}"></i> ${CLOUD.user ? 'Nube: ' + esc(CLOUD.user.email) : 'Nube: sin sesión'}</div>` : ''}<button class="btn secondary sm theme-side" data-act="theme">${icon('moon','i moon')}${icon('sun','i sun')}Tema</button></div></aside>
   <div class="main">
-    <header class="top"><div class="in"><a class="logo" href="#inicio" style="display:none" id="mlogo"><i>$</i></a><div class="ttl">${VIEWS[S.view].title}</div><span class="sp"></span>
+    <header class="top"><div class="in"><a class="logo mlogo" href="#inicio" aria-label="Inicio">${LOGO}</a><div class="ttl">${VIEWS[S.view].title}</div><span class="sp"></span>
       <div class="monthsel"><button data-m="-1" aria-label="Mes anterior">${icon('chevL')}</button><button class="cur${isPast(S.month) ? ' past' : ''}" data-act="pick" title="Ir al mes actual">${monthLabel(S.month)}</button><button data-m="1" aria-label="Mes siguiente">${icon('chevR')}</button></div>
       ${S.month !== thisMonth() ? `<button class="btn quiet sm" data-act="today">Hoy</button>` : ''}
       <button class="theme" data-act="theme" aria-label="Cambiar tema"><svg class="i sun" viewBox="0 0 24 24">${ICONS.sun}</svg><svg class="i moon" viewBox="0 0 24 24">${ICONS.moon}</svg></button></div></header>
     <main class="content" id="content"></main>
   </div>
-  <nav class="bottom"><a href="#inicio" class="${S.view === 'inicio' ? 'on' : ''}">${icon('home2')}<span>Inicio</span></a><a href="#movimientos" class="${S.view === 'movimientos' ? 'on' : ''}">${icon('list')}<span>Movimientos</span></a><a href="#inicio" class="fab" data-act="new-gasto" aria-label="Registrar gasto"><i>${icon('plus')}</i><span>Gasto</span></a><a href="#tarjetas" class="${S.view === 'tarjetas' ? 'on' : ''}">${icon('card')}<span>Tarjetas</span></a><a href="#inicio" class="${['gastos', 'resumen', 'historial', 'deudas', 'recurrentes', 'calendario', 'presupuesto', 'categorias', 'ajustes'].includes(S.view) ? 'on' : ''}" data-act="more">${icon('more')}<span>Más</span></a></nav>`;
+  <nav class="bottom"><a href="#inicio" class="${S.view === 'inicio' ? 'on' : ''}">${icon('home2')}<span>Inicio</span></a><a href="#movimientos" class="${S.view === 'movimientos' ? 'on' : ''}">${icon('list')}<span>Movimientos</span></a><a href="#inicio" class="fab" data-act="add" aria-label="Registrar algo"><i>${icon('plus')}</i><span>Registrar</span></a><a href="#tarjetas" class="${S.view === 'tarjetas' ? 'on' : ''}">${icon('card')}<span>Tarjetas</span></a><a href="#inicio" class="${['gastos', 'resumen', 'historial', 'deudas', 'recurrentes', 'calendario', 'versi', 'presupuesto', 'categorias', 'ajustes'].includes(S.view) ? 'on' : ''}" data-act="more">${icon('more')}<span>Más</span></a></nav>`;
 }
 
 function render() {
   const app = document.getElementById('app');
-  if (S.locked) { app.className = ''; app.innerHTML = coverHTML(); bindCover(app); document.title = 'Raw Money'; window.scrollTo(0, 0); return; }
+  if (S.locked) { app.className = ''; app.innerHTML = coverHTML(); bindCover(app); document.title = 'Raw Money'; window.scrollTo(0, 0); Cat.sync(true); return; }
   app.className = 'app';
   materializeRecurring(S.month);
   const scrollY = window.scrollY;
@@ -67,7 +81,9 @@ function render() {
   const content = app.querySelector('#content');
   const v = VIEWS[S.view] || VIEWS.inicio;
   content.innerHTML = v.fn();
+  if (S._lastView !== S.view) { content.classList.add('enter'); S._lastView = S.view; }
   if (v.bind) v.bind(content);
+  Cat.mount(); Cat.sync(false);
   bindTips(app);
   // navegación y acciones
   app.querySelectorAll('[data-m]').forEach(b => b.addEventListener('click', () => { S.month = addMonths(S.month, Number(b.dataset.m)); S.histB = S.month; render(); }));
