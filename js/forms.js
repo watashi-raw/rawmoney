@@ -33,6 +33,7 @@ const F = {
   month: (n, l, v) => `<div class="f"><label for="fx-${n}">${l}</label><input class="inp" id="fx-${n}" name="${n}" type="month" value="${v || thisMonth()}"></div>`,
   sel: (n, l, opts, v, hint = '') => `<div class="f" data-f="${n}"><label for="fx-${n}">${l}</label><select class="sel" id="fx-${n}" name="${n}">${opts.map(([k, t]) => `<option value="${k}"${String(k) === String(v) ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select>${hint ? `<div class="hint">${hint}</div>` : ''}</div>`,
   seg: (n, opts, v) => `<div class="seg" data-f="${n}">${opts.map(([k, t]) => `<label><input type="radio" name="${n}" value="${k}"${k === v ? ' checked' : ''}>${t}</label>`).join('')}</div>`,
+  combo: (n, l, hint = '', ph = 'Escribe o elige…') => `<div class="f combo" data-f="${n}"><label for="fx-${n}">${l}</label><div class="cb"><input class="inp cb-q" id="fx-${n}" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="cb-${n}" placeholder="${esc(ph)}"><button type="button" class="cb-arrow" tabindex="-1" aria-label="Ver opciones"><svg class="i" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button><input type="hidden" name="${n}"><div class="cb-list" id="cb-${n}" role="listbox" hidden></div></div>${hint ? `<div class="hint">${hint}</div>` : ''}</div>`,
   toggle: (n, l, v) => `<label class="toggle"><input type="checkbox" name="${n}"${v ? ' checked' : ''}>${l}</label>`,
   area: (n, l, v = '') => `<div class="f"><label for="fx-${n}">${l}</label><textarea class="inp" id="fx-${n}" name="${n}" rows="2">${esc(v)}</textarea></div>`,
   colors: (n, v) => `<div class="f"><label>Color</label><div class="swatches">${CAT_COLORS.map(c => `<label style="--c:${c}"><input type="radio" name="${n}" value="${c}"${c === v ? ' checked' : ''}></label>`).join('')}</div></div>`,
@@ -72,6 +73,77 @@ function bindNewCat(form, kindOf) {
   inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); create(); } if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); sel.focus(); } });
   return close;
 }
+/* Campo con sugerencias: escribes, filtra tus opciones; si escribes algo nuevo,
+   ofrece guardarlo como cuenta y pide confirmación (con el tipo) antes de crearla. */
+const fold = t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+function bindCombo(form, name, { onCreate } = {}) {
+  const wrap = form.querySelector(`[data-f="${name}"] .cb`), q = wrap.querySelector('.cb-q'), hid = wrap.querySelector(`[name="${name}"]`), list = wrap.querySelector('.cb-list');
+  let opts = [], active = -1, confirming = false, quiet = false;
+  const label = id => (opts.find(o => o[0] === id) || [])[1] || '';
+  const open = on => { list.hidden = !on; q.setAttribute('aria-expanded', on); wrap.classList.toggle('open', on); if (!on) { confirming = false; active = -1; } };
+  const choose = (id, silent) => {
+    hid.value = id || ''; q.value = label(id);
+    wrap.classList.toggle('filled', !!hid.value);
+    if (!silent) { hid.dispatchEvent(new Event('change', { bubbles: true })); wrap.classList.remove('pop'); void wrap.offsetWidth; wrap.classList.add('pop'); }
+  };
+  const items = () => [...list.querySelectorAll('[data-id],[data-new]')];
+  const paint = () => {
+    if (confirming) return;
+    const t = fold(q.value); const typed = q.value.trim();
+    const showAll = !t || (hid.value && t === fold(label(hid.value)));   // recién enfocado: muestra todo
+    const shown = opts.filter(([, l]) => showAll || fold(l).includes(t));
+    const exact = opts.some(([, l]) => fold(l) === t);
+    list.innerHTML = shown.map(([id, l]) => `<button type="button" role="option" class="cb-it${id === hid.value ? ' on' : ''}" data-id="${id}">${esc(l)}</button>`).join('')
+      + (typed && !exact && onCreate ? `<button type="button" role="option" class="cb-it cb-new" data-new>${icon('plus')}<span>Guardar «${esc(typed)}» como cuenta nueva</span></button>` : '')
+      + (!shown.length && !typed ? `<div class="cb-empty">Aún no tienes cuentas guardadas. Escribe su nombre, por ejemplo «BBVA» o «Efectivo».</div>` : '');
+    active = -1;
+  };
+  const ask = () => {
+    const nm = q.value.trim(); if (!nm) return;
+    confirming = true; open(true);
+    list.innerHTML = `<div class="cb-ask" role="dialog" aria-label="Confirmar cuenta nueva"><p>¿Guardar <b>«${esc(nm)}»</b> como cuenta nueva?</p>
+      <div class="cb-type" role="radiogroup" aria-label="Tipo de cuenta"><button type="button" class="on" data-t="debito" aria-pressed="true">Débito / banco</button><button type="button" data-t="efectivo" aria-pressed="false">Efectivo</button></div>
+      <div class="cb-acts"><button type="button" class="btn quiet sm" data-a="no">Cancelar</button><button type="button" class="btn primary sm" data-a="si">${icon('check')}Sí, guardar</button></div></div>`;
+    let type = /efectivo|cash|cartera|monedero/.test(fold(nm)) ? 'efectivo' : 'debito';
+    const mark = () => list.querySelectorAll('[data-t]').forEach(b => { b.classList.toggle('on', b.dataset.t === type); b.setAttribute('aria-pressed', b.dataset.t === type); });
+    mark();
+    list.querySelectorAll('[data-t]').forEach(b => b.addEventListener('click', () => { type = b.dataset.t; mark(); }));
+    list.querySelector('[data-a=no]').addEventListener('click', () => { confirming = false; paint(); quiet = true; q.focus(); quiet = false; });
+    list.querySelector('[data-a=si]').addEventListener('click', () => { const id = onCreate(nm, type); confirming = false; open(false); choose(id); quiet = true; q.focus(); quiet = false; });
+    list.querySelector('[data-a=si]').focus();
+  };
+  list.addEventListener('mousedown', e => e.preventDefault());       // no perder el foco al tocar la lista
+  list.addEventListener('click', e => { const b = e.target.closest('[data-id],[data-new]'); if (!b) return; if (b.dataset.new !== undefined) ask(); else { choose(b.dataset.id); open(false); } });
+  q.addEventListener('focus', () => { if (quiet) return; paint(); open(true); q.select(); });
+  q.addEventListener('input', () => { confirming = false; paint(); open(true); });
+  wrap.querySelector('.cb-arrow').addEventListener('click', () => { if (list.hidden) { q.focus(); } else open(false); });
+  q.addEventListener('keydown', e => {
+    if (confirming) { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); confirming = false; paint(); } return; }
+    const its = items();
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); open(true); active = (active + (e.key === 'ArrowDown' ? 1 : -1) + its.length) % Math.max(1, its.length); its.forEach((b, i) => b.classList.toggle('act', i === active)); its[active] && its[active].scrollIntoView({ block: 'nearest' }); }
+    else if (e.key === 'Enter') {
+      e.preventDefault();
+      const b = its[active] || its.find(x => x.dataset.id && fold(x.textContent) === fold(q.value)) || its.find(x => x.dataset.id);
+      if (b && b.dataset.id) { choose(b.dataset.id); open(false); } else if (q.value.trim() && onCreate) ask();
+    } else if (e.key === 'Escape' && !list.hidden) { e.preventDefault(); e.stopPropagation(); open(false); q.value = label(hid.value); }
+  });
+  wrap.addEventListener('focusout', () => setTimeout(() => {
+    if (wrap.contains(document.activeElement) || confirming) return;
+    const hit = opts.find(([, l]) => fold(l) === fold(q.value));
+    if (hit && hit[0] !== hid.value) choose(hit[0]); else q.value = label(hid.value);
+    open(false);
+  }, 0));
+  return {
+    setOpts(o) { opts = o; if (hid.value && !opts.some(x => x[0] === hid.value)) choose('', true); else q.value = label(hid.value); if (!list.hidden) paint(); },
+    set(id, silent = true) { choose(opts.some(o => o[0] === id) ? id : '', silent); },
+  };
+}
+/* Crea una cuenta desde un formulario (ya confirmada por la usuaria) */
+function quickAccount(name, type) {
+  let a = S.data.accounts.find(x => fold(x.name) === fold(name));
+  if (!a) { a = { id: uid(), name, type, institution: '', opening: 0 }; S.data.accounts.push(a); saveData(); toast(`Cuenta «${name}» guardada`); }
+  return a.id;
+}
 function need(form, ok, msg) { if (!ok) { toast(msg); return false; } return true; }
 
 /* ---------- Movimiento ---------- */
@@ -84,13 +156,14 @@ function formTx(t, preset = {}) {
     ${F.sel('categoryId', 'Categoría', catOptsNew(v.type === 'ingreso' ? 'ingreso' : 'gasto'), v.categoryId)}
     ${newCatBox()}
     ${F.sel('method', 'Método de pago', Object.entries(METHODS), v.method)}
-    ${F.sel('accountId', 'Cuenta o tarjeta', allAccOpts(), v.accountId, 'Si usas tarjeta de crédito, elige la tarjeta y el método “Crédito”.')}
+    ${F.combo('accountId', 'Cuenta o tarjeta', 'Si usas tarjeta de crédito, elige la tarjeta y el método “Crédito”.', 'Escribe o elige, ej. BBVA, Efectivo')}
     ${F.sel('targetId', 'Destino', [], v.targetId)}
     ${F.toggle('fixed', 'Es un gasto fijo (renta, servicios, mensualidades…)', v.fixed)}
     ${F.area('notes', 'Notas (opcional)', v.notes)}`;
   const dr = openDrawer({ title: isNew ? ({ gasto: '¿Qué gastaste?', ingreso: '¿Cuánto entró?', pago_tarjeta: 'Pago de tarjeta', pago_deuda: 'Abono a una deuda', ahorro: '¿Cuánto apartaste?', transferencia: 'Mover entre cuentas' }[v.type] || 'Nuevo movimiento') : 'Editar movimiento', eyebrow: isNew ? 'Registrar' : dateLong(v.date), body, saveLabel: isNew ? 'Registrar' : 'Guardar cambios',
     onSave: (o, form) => {
       if (!need(form, o.amount > 0, 'Escribe un monto mayor a cero')) return; if (!need(form, o.desc, 'Escribe una descripción')) return;
+      if (!need(form, o.accountId, 'Elige la cuenta, o escribe una nueva y guárdala')) return;
       const isCard = !!byId(S.data.cards, o.accountId);
       if (o.type === 'gasto' && isCard) o.method = 'credito';
       if (o.type === 'gasto' && o.method === 'credito' && !isCard) { if (!need(form, false, 'Para pagar con crédito elige una tarjeta')) return; }
@@ -106,6 +179,7 @@ function formTx(t, preset = {}) {
     },
     onDelete: isNew ? null : () => confirmBox('¿Eliminar este movimiento?', t.recurringId ? 'Es un gasto recurrente: solo se quitará de este mes.' : 'Esta acción no se puede deshacer.', () => { if (t.recurringId) S.data.skips.push(t.id); S.data.transactions = S.data.transactions.filter(x => x.id !== t.id); saveData(); closeDrawer(); render(); toast('Movimiento eliminado'); }) });
   const form = dr.querySelector('form');
+  const acc = bindCombo(form, 'accountId', { onCreate: quickAccount });
   const closeNewCat = bindNewCat(form, () => form.querySelector('[name=type]:checked').value === 'ingreso' ? 'ingreso' : 'gasto');
   const sync = () => {
     const type = form.querySelector('[name=type]:checked').value; const method = form.querySelector('[name=method]');
@@ -119,7 +193,7 @@ function formTx(t, preset = {}) {
     if (cs.dataset.kind !== kind) { const cur = cs.value; closeNewCat(); cs.innerHTML = catOptsNew(kind).map(([k, n]) => `<option value="${k}">${esc(n)}</option>`).join(''); cs.dataset.kind = kind; if ([...cs.options].some(o => o.value === cur)) cs.value = cur; else if (kind === 'ingreso') cs.value = 'sueldo'; }
     // cuentas: sólo débito/efectivo salvo gasto
     const as = form.querySelector('[name=accountId]'); const cur = as.value; const opts = type === 'gasto' ? allAccOpts() : accOpts();
-    as.innerHTML = opts.map(([k, n]) => `<option value="${k}">${esc(n)}</option>`).join(''); if (opts.some(o => o[0] === cur)) as.value = cur;
+    acc.setOpts(opts); acc.set(cur);
     // destino
     const ts = form.querySelector('[name=targetId]'); const tcur = ts.value;
     const topts = type === 'transferencia' ? accOpts().filter(o => o[0] !== as.value) : type === 'pago_tarjeta' ? cardOpts() : type === 'pago_deuda' ? S.data.debts.map(d => [d.id, d.name]) : [];
@@ -127,6 +201,7 @@ function formTx(t, preset = {}) {
     form.querySelector('label[for=fx-targetId]').textContent = type === 'transferencia' ? 'A la cuenta' : type === 'pago_tarjeta' ? 'Tarjeta que pagas' : 'Deuda que pagas';
     if (type === 'gasto') { const isCard = !!byId(S.data.cards, as.value); if (isCard) method.value = 'credito'; else if (method.value === 'credito') method.value = 'debito'; }
   };
+  acc.setOpts(allAccOpts()); acc.set(v.accountId);
   form.addEventListener('change', e => { if (['type', 'accountId', 'method'].includes(e.target.name)) { if (e.target.name === 'method' && e.target.value === 'credito' && !byId(S.data.cards, form.querySelector('[name=accountId]').value) && S.data.cards[0]) form.querySelector('[name=accountId]').value = S.data.cards[0].id; sync(); } });
   sync();
 }
