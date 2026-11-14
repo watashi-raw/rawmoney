@@ -74,6 +74,72 @@ function planSplit(t) {
   const mine = Math.max(0, t.amount - save - trans);
   setTimeout(() => confirmBox(`Aparta ${money0(save)} para tu ahorro`,
     `De ${money0(t.amount)}: ${c.split.savePct}% a ahorro (${money0(save)}), ${money0(trans)} a transporte y ${money0(mine)} son para ti. ¿Registro el ahorro ahora?`,
-    () => { S.data.transactions.push({ id: uid(), type: 'ahorro', amount: save, date: t.date, desc: `Ahorro de ${t.desc}`, accountId: t.accountId, categoryId: null, targetId: null, fixed: false, notes: '' }); saveData(); render(); toast(`Ahorro de ${money0(save)} registrado`); },
+    () => { S.data.transactions.push({ id: uid(), type: 'ahorro', amount: save, date: t.date, desc: `Ahorro de ${t.desc}`, accountId: t.accountId, categoryId: null, targetId: null, fixed: false, notes: '', fromFreelance: true, fromTx: t.id }); saveData(); render(); toast(`Ahorro de ${money0(save)} registrado`); },
     'Sí, registrar'), 350);
+}
+
+/* ---------- Pestaña Freelance: cuánto entró, por qué, cómo se dividió y cómo se ha usado ---------- */
+const flCats = () => S.data.categories.filter(c => c.kind === 'ingreso' && c.split);
+const flSplit = t => { const sp = (byId(S.data.categories, t.categoryId) || {}).split || FREELANCE.split; const save = Math.round(t.amount * sp.savePct / 100); const trans = Math.min(sp.transport || 0, Math.max(0, t.amount - save)); return { save, trans, mine: Math.max(0, t.amount - save - trans), pct: sp.savePct }; };
+const isTransCat = id => { const c = byId(S.data.categories, id); return id === 'transporte' || (c && fold(c.name).includes('transporte')); };
+function freelanceData(ym) {
+  const ids = new Set(flCats().map(c => c.id));
+  const T = S.data.transactions.filter(t => inMonth(t, ym));
+  const incomes = T.filter(t => t.type === 'ingreso' && ids.has(t.categoryId)).sort((a, b) => b.date.localeCompare(a.date)).map(t => ({ t, ...flSplit(t) }));
+  const savings = T.filter(t => t.type === 'ahorro' && (t.fromFreelance || t.fromTx || /^Ahorro de /.test(t.desc || '')));
+  incomes.forEach(i => { i.saved = sum(savings.filter(s => s.fromTx === i.t.id || (!s.fromTx && s.desc === `Ahorro de ${i.t.desc}`))); });
+  const spent = T.filter(t => t.type === 'gasto' && t.fromFreelance).sort((a, b) => b.date.localeCompare(a.date));
+  const tot = { in: sum(incomes, i => i.t.amount), save: sum(incomes, i => i.save), trans: sum(incomes, i => i.trans), mine: sum(incomes, i => i.mine) };
+  const used = { save: sum(savings), trans: sum(spent.filter(t => isTransCat(t.categoryId))), mine: sum(spent.filter(t => !isTransCat(t.categoryId))) };
+  return { incomes, savings, spent, tot, used };
+}
+function freelanceHTML() {
+  const ym = S.month; const fc = flCats();
+  if (!fc.length) return `<div class="card"><div class="empty"><h3>Aún no tienes la categoría de freelance</h3><p>Se crea al cargar tu plan: «${FREELANCE.name}», con la regla de 50% a ahorro, ${money0(FREELANCE.split.transport)} a transporte y el resto para ti.</p><button class="btn primary" data-act="plan">${icon('sparkle')}<span>Cargar mi plan</span></button></div></div>`;
+  const D = freelanceData(ym); const { tot, used } = D; const sp = fc[0].split;
+  const addBtn = `<button class="btn primary" data-fl-add>${icon('plus')}<span>Registrar ingreso freelance</span></button>`;
+  if (!D.incomes.length) return `<section class="fl"><div class="card fl-hero empty-hero"><div class="fl-hero-ic">${icon('briefcase')}</div><div><h2>Sin ingresos freelance en ${monthLabel(ym)}</h2><p>Cuando registres uno con la categoría «${esc(fc[0].name)}», aquí verás cuánto entró, por qué fue y cómo se repartió: ${sp.savePct}% a ahorro, ${money0(sp.transport)} a transporte y el resto para ti.</p>${addBtn}</div></div></section>`;
+  const parts = [
+    ['save', 'Ahorro', `${sp.savePct}% de cada ingreso`, 'piggy', '#2D8F73', tot.save, used.save, 'apartado', 'Falta apartar', 'Apartado de más'],
+    ['trans', 'Transporte', `${money0(sp.transport)} por ingreso`, 'car', '#3884B0', tot.trans, used.trans, 'gastado', 'Te quedan', 'Te pasaste por'],
+    ['mine', 'Para ti', 'Lo que sobra', 'sparkle', '#9B669A', tot.mine, used.mine, 'gastado', 'Te quedan', 'Te pasaste por'],
+  ];
+  const pending = Math.max(0, tot.save - used.save);
+  return `<section class="fl">
+    <div class="card fl-hero">
+      <div class="fl-hero-top"><div class="fl-hero-ic">${icon('briefcase')}</div><div><div class="eyebrow">Freelance · ${monthLabel(ym)}</div><div class="fl-big num">${money0(tot.in)}</div><p>${D.incomes.length} ingreso${D.incomes.length === 1 ? '' : 's'} extra este mes</p></div>${addBtn}</div>
+      <div class="fl-stack" aria-label="Cómo se dividió">${parts.map(p => p[5] ? `<i style="flex:${p[5]};background:${col(p[4])}" title="${p[1]} ${money0(p[5])}"></i>` : '').join('')}</div>
+      <div class="fl-legend">${parts.map(p => `<span><i style="background:${col(p[4])}"></i>${p[1]} <b>${money0(p[5])}</b> <em>${tot.in ? pct(p[5] / tot.in * 100) : '0%'}</em></span>`).join('')}</div>
+    </div>
+    <h3 class="qz-h3">${icon('pie')}Cómo se dividió y cómo lo has usado</h3>
+    <div class="fl-parts">${parts.map(([k, t, sub, ic, c, asg, u, verb, leftL, overL]) => { const left = asg - u, over = left < 0; const p = asg ? Math.min(100, u / asg * 100) : 0;
+      return `<div class="fl-part${over && k !== 'save' ? ' over' : ''}" style="--fc:${col(c)}"><div class="fl-part-h"><span class="fl-part-ic">${icon(ic)}</span><div><b>${t}</b><small>${sub}</small></div></div>
+        <div class="fl-part-big num">${money0(asg)}</div><div class="fl-part-cap">asignado</div>
+        <div class="qz-meter"><i style="width:${p}%"></i></div>
+        <div class="fl-part-row"><span>${verb[0].toUpperCase() + verb.slice(1)} <b>${money0(u)}</b></span>${left === 0 && asg > 0 ? `<span class="ok">${k === 'save' ? 'Completo' : 'Usado completo'} ✓</span>` : `<span class="${over ? (k === 'save' ? 'ok' : 'no') : (k === 'save' && left > 0 ? 'no' : 'ok')}">${over ? overL : leftL} <b>${money0(Math.abs(left))}</b></span>`}</div>
+        ${k === 'save' && pending > 0 ? `<button class="btn sm fl-save" data-fl-save>${icon('piggy')}Registrar ${money0(pending)} de ahorro</button>` : ''}</div>`; }).join('')}</div>
+    <h3 class="qz-h3">${icon('list')}Por qué entró</h3>
+    <div class="card fl-list">${D.incomes.map(i => { const acc = byId(S.data.accounts, i.t.accountId); const ok = i.saved >= i.save;
+      return `<div class="fl-in" data-tx="${i.t.id}"><div class="fl-in-d"><b>${dateLabel(i.t.date)}</b></div><div class="fl-in-m"><b>${esc(i.t.desc || 'Ingreso freelance')}</b><small>${acc ? esc(acc.name) : ''}${i.t.notes ? ` · ${esc(i.t.notes)}` : ''}</small>
+        <div class="fl-chips"><span class="c-save">${icon('piggy')}${money0(i.save)}</span><span class="c-trans">${icon('car')}${money0(i.trans)}</span><span class="c-mine">${icon('sparkle')}${money0(i.mine)}</span><span class="st ${ok ? 'ok' : 'no'}">${ok ? `${icon('check')}Ahorro apartado` : `${icon('alert')}Ahorro pendiente`}</span></div></div>
+        <div class="fl-in-v num">${money0(i.t.amount)}</div></div>`; }).join('')}</div>
+    <h3 class="qz-h3">${icon('cart')}En qué lo usaste</h3>
+    <div class="card fl-list">${D.spent.length ? D.spent.map(t => { const c = cat(t.categoryId); return `<div class="fl-in use" data-tx="${t.id}" style="--cat:${col(c.color)}"><div class="fl-in-d"><b>${dateLabel(t.date)}</b></div><div class="fl-in-m"><b>${esc(t.desc)}</b><small><i class="dot"></i>${esc(c.name)} · ${isTransCat(t.categoryId) ? 'de transporte' : 'de tu parte'}</small></div><div class="fl-in-v num neg">−${money0(t.amount)}</div></div>`; }).join('')
+      : `<div class="fl-none">${icon('cart')}<div><b>Todavía no marcas gastos con dinero de freelance</b><span>Al registrar un gasto, activa «Lo pagué con dinero de freelance» y aparecerá aquí, descontado de transporte o de tu parte.</span></div></div>`}</div>
+  </section>`;
+}
+function bindFreelance(root) {
+  const box = root.querySelector('.fl'); if (!box) return;
+  const fc = flCats()[0];
+  box.querySelectorAll('[data-fl-add]').forEach(b => b.addEventListener('click', () => formTx(null, { type: 'ingreso', categoryId: fc && fc.id })));
+  box.querySelectorAll('[data-tx]').forEach(r => r.addEventListener('click', () => { const t = byId(S.data.transactions, r.dataset.tx); if (t) formTx(t); }));
+  const sv = box.querySelector('[data-fl-save]');
+  if (sv) sv.addEventListener('click', () => {
+    const D = freelanceData(S.month); const pend = D.incomes.filter(i => i.saved < i.save);
+    const total = sum(pend, i => i.save - i.saved);
+    confirmBox(`¿Registrar ${money0(total)} de ahorro?`, `Se registra un movimiento de ahorro por cada ingreso freelance que aún no tiene su ${pend[0] ? pend[0].pct : 50}% apartado.`, () => {
+      pend.forEach(i => S.data.transactions.push({ id: uid(), type: 'ahorro', amount: i.save - i.saved, date: i.t.date, desc: `Ahorro de ${i.t.desc}`, accountId: i.t.accountId, categoryId: null, targetId: null, fixed: false, notes: '', fromFreelance: true, fromTx: i.t.id }));
+      saveData(); const y = scrollY; render(); window.scrollTo(0, y); toast('Ahorro registrado');
+    }, 'Sí, registrar');
+  });
 }

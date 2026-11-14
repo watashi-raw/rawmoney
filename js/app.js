@@ -5,6 +5,16 @@ function confirmBox(title, text, onOk, okLabel = 'Eliminar') {
   const m = document.createElement('div'); m.className = 'modal'; m.innerHTML = `<div class="box" role="alertdialog"><h3>${esc(title)}</h3><p>${esc(text)}</p><div class="acts"><button class="btn quiet" data-no>Cancelar</button><button class="btn ${okLabel === 'Eliminar' || okLabel === 'Borrar' ? 'danger' : 'primary'}" data-ok>${okLabel}</button></div></div>`;
   document.body.appendChild(m); m.querySelector('[data-no]').addEventListener('click', () => m.remove()); m.addEventListener('click', e => { if (e.target === m) m.remove(); }); m.querySelector('[data-ok]').addEventListener('click', () => { m.remove(); onOk(); }); m.querySelector('[data-ok]').focus();
 }
+/* Diálogo con varias opciones: buttons = [{ label, cls, fn }]; cancelar siempre al final */
+function choiceBox(title, text, buttons, onCancel) {
+  const m = document.createElement('div'); m.className = 'modal'; m.innerHTML = `<div class="box choice" role="alertdialog"><h3>${esc(title)}</h3><p>${text}</p><div class="acts col">${buttons.map((b, i) => `<button class="btn ${b.cls || 'quiet'}" data-i="${i}">${b.label}</button>`).join('')}<button class="btn quiet" data-no>Cancelar</button></div></div>`;
+  const close = cancel => { m.remove(); document.removeEventListener('keydown', esc_); if (cancel && onCancel) onCancel(); };
+  const esc_ = e => { if (e.key === 'Escape') close(true); };
+  document.body.appendChild(m); document.addEventListener('keydown', esc_);
+  m.querySelector('[data-no]').addEventListener('click', () => close(true)); m.addEventListener('click', e => { if (e.target === m) close(true); });
+  m.querySelectorAll('[data-i]').forEach(b => b.addEventListener('click', () => { close(false); buttons[+b.dataset.i].fn(); }));
+  m.querySelector('[data-i]').focus();
+}
 function applyTheme() { let t = null; try { t = localStorage.getItem('rawmoney.theme'); } catch (e) {} document.documentElement.dataset.theme = t || 'light'; }
 function toggleTheme() { const root = document.documentElement; root.dataset.theme = isLightTheme() ? 'dark' : 'light'; try { localStorage.setItem('rawmoney.theme', root.dataset.theme); } catch (e) {} render(); }
 async function exportJSON() {

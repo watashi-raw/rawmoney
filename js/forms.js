@@ -178,6 +178,7 @@ function formTx(t, preset = {}) {
     ${F.combo('accountId', 'Cuenta o tarjeta', 'Si usas tarjeta de crédito, elige la tarjeta y el método “Crédito”.', 'Escribe o elige, ej. BBVA, Efectivo')}
     ${F.combo('targetId', 'Destino', '', 'Escribe o elige…')}
     ${F.toggle('fixed', 'Es un gasto fijo (renta, servicios, mensualidades…)', v.fixed)}
+    <label class="toggle ff"><input type="checkbox" name="fromFreelance"${v.fromFreelance ? ' checked' : ''}><span>Lo pagué con dinero de freelance</span></label>
     ${F.area('notes', 'Notas (opcional)', v.notes)}`;
   const dr = openDrawer({ title: isNew ? ({ gasto: '¿Qué gastaste?', ingreso: '¿Cuánto entró?', pago_tarjeta: 'Pago de tarjeta', pago_deuda: 'Abono a una deuda', ahorro: '¿Cuánto apartaste?', transferencia: 'Mover entre cuentas' }[v.type] || 'Nuevo movimiento') : 'Editar movimiento', eyebrow: isNew ? 'Registrar' : dateLong(v.date), body, saveLabel: isNew ? 'Registrar' : 'Guardar cambios',
     onSave: (o, form) => {
@@ -191,6 +192,7 @@ function formTx(t, preset = {}) {
       if (!['gasto', 'ingreso'].includes(o.type)) o.categoryId = null;
       if (!['gasto', 'ingreso', 'pago_deuda'].includes(o.type)) o.fixed = false;
       if (!['transferencia', 'pago_tarjeta', 'pago_deuda'].includes(o.type)) o.targetId = null;
+      if (!['gasto', 'ahorro'].includes(o.type)) o.fromFreelance = false;
       if (o.type === 'pago_deuda') { const d = byId(S.data.debts, o.targetId); if (d && !(d.monthly > 0) && o.fixed) d.monthly = o.amount; }
       if (o.type === 'ingreso' && o.method === 'credito') o.method = 'transferencia';
       if (isNew) { S.data.transactions.push({ id: uid(), ...o }); toast(o.type === 'ingreso' ? 'Ingreso registrado' : 'Movimiento registrado'); dispatchEvent(new CustomEvent('rm:tx', { detail: o })); }
@@ -209,7 +211,8 @@ function formTx(t, preset = {}) {
     const show = (n, on) => { const el = form.querySelector(`[data-f="${n}"]`); if (el) el.hidden = !on; };
     show('categoryId', type === 'gasto' || type === 'ingreso'); if (!(type === 'gasto' || type === 'ingreso')) closeNewCat(); show('method', type === 'gasto');
     show('targetId', ['transferencia', 'pago_tarjeta', 'pago_deuda'].includes(type));
-    const tg = form.querySelector('.toggle'); tg.hidden = !FIXED_LABEL[type]; if (FIXED_LABEL[type]) tg.lastChild.textContent = FIXED_LABEL[type];
+    const ff = form.querySelector('.toggle.ff'); ff.hidden = !(['gasto', 'ahorro'].includes(type) && S.data.categories.some(c => c.split)); ff.querySelector('span').textContent = type === 'ahorro' ? 'Este ahorro viene de un ingreso freelance' : 'Lo pagué con dinero de freelance';
+    const tg = form.querySelector('.toggle:not(.ff)'); tg.hidden = !FIXED_LABEL[type]; if (FIXED_LABEL[type]) tg.lastChild.textContent = FIXED_LABEL[type];
     form.querySelector('label[for=fx-accountId]').textContent = type === 'transferencia' ? 'Desde la cuenta' : type === 'gasto' ? 'Cuenta o tarjeta' : type === 'ingreso' ? 'Cuenta donde entra' : 'Cuenta desde la que pagas';
     // categorías por tipo
     const cs = form.querySelector('[name=categoryId]'); const kind = type === 'ingreso' ? 'ingreso' : 'gasto';

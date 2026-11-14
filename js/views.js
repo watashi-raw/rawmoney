@@ -208,7 +208,9 @@ function budGrouped(bs) {
 }
 /* ---------- Por quincena: reparte cada concepto en dos partes (editable) y revisa si cuadra ---------- */
 const QK_SAVE = '__ahorro';
-function qState() { const q = S.data.quincenas || (S.data.quincenas = { income: null, q1: {} }); if (!q.q1) q.q1 = {}; if (!q.pay) q.pay = {}; return q; }
+function qState() { const q = S.data.quincenas || (S.data.quincenas = { income: null, q1: {} }); if (!q.q1) q.q1 = {}; if (!q.pay) q.pay = {}; if (!q.paid) q.paid = {}; return q; }
+/* Qué ya se pagó, por mes: paid['2026-11']['renta:a'] = true */
+const qPaid = (ym = S.month) => { const q = qState(); return q.paid[ym] || (q.paid[ym] = {}); };
 function qIncome() { const q = qState(); const half = Math.round(PLAN_INCOME / 2); return q.income && q.income.length === 2 ? q.income : [half, PLAN_INCOME - half]; }
 function qRows(bs) {
   const q = qState(); const rows = budGrouped(bs).filter(b => !b.head).map(b => ({ id: b.cat.id, name: b.cat.name, icon: b.cat.icon, color: col(b.cat.color), total: b.budget, group: b.cat.group, fixed: isFixedCat(b.cat) }));
@@ -222,7 +224,7 @@ function removeBudget(id) {
   confirmBox(`¿Quitar ${name} del presupuesto?`, `Se quita de Mensual y de Por quincena (${money0(amt || 0)} al mes). ${isSave ? 'Tu meta de ahorro queda en cero.' : 'La categoría y sus movimientos se conservan; puedes volver a agregarla desde «Sin presupuesto».'}`, () => {
     const q = qState();
     if (isSave) S.data.savingsGoal = 0; else delete S.data.budgets[id];
-    delete q.q1[id]; delete q.pay[id];
+    delete q.q1[id]; delete q.pay[id]; Object.values(q.paid || {}).forEach(m => { delete m[`${id}:a`]; delete m[`${id}:b`]; });
     saveData(); const y = scrollY; render(); window.scrollTo(0, y);
     toast(`${name} quitado del presupuesto`);
   }, 'Quitar');
@@ -242,11 +244,13 @@ function quincenasHTML(bs) {
   const [i1, i2] = qIncome(); const last = new Date(+S.month.slice(0, 4), +S.month.slice(5, 7), 0).getDate();
   const pays = qPayOpts();
   const opt = r => `<option value="">Sin asignar</option>${pays.map(p => `<option value="${p.id}"${p.id === r.pay ? ' selected' : ''}>${esc(p.name)}${fold(p.name).includes(fold(p.kind)) ? '' : ` · ${p.kind}`}</option>`).join('')}`;
-  const field = (cls, lbl, k, r, v) => `<label class="qz-f ${cls}"><small>${lbl}</small><span class="qz-in"><i>$</i><input class="qn" type="number" inputmode="decimal" min="0" step="any" data-q="${k}" data-id="${r.id}" value="${v}"></span></label>`;
+  const paid = qPaid();
+  const field = (cls, lbl, k, r, v) => { const pk = `${r.id}:${k}`, on = k !== 'm' && paid[pk];
+    return `<div class="qz-f ${cls}${on ? ' paid' : ''}"><small>${lbl}${k !== 'm' ? `<em class="qz-ptag">${on ? 'pagado' : 'falta'}</em>` : ''}</small><span class="qz-in">${k !== 'm' ? `<button type="button" class="qz-chk" data-chk="${pk}" role="checkbox" aria-checked="${!!on}" aria-label="Marcar ${lbl.replace(/<[^>]+>/g, '')} de ${esc(r.name)} como pagado">${icon('check')}</button>` : ''}<i>$</i><input class="qn" type="number" inputmode="decimal" min="0" step="any" data-q="${k}" data-id="${r.id}" value="${v}" aria-label="${lbl.replace(/<[^>]+>/g, '')} de ${esc(r.name)}"></span></div>`; };
   const q2c = col('#3884B0');
   return `<section class="qz qz-tab" id="qz" style="--q1:var(--berry);--q2:${q2c}">
     <div class="card qz-card">
-      <div class="ch"><div><h2>Por quincena</h2><p class="qz-sub">Edita el monto del mes o el de cada quincena: la otra se ajusta sola. Elige con qué tarjeta o cuenta pagas cada concepto y marca cuáles son fijos.</p></div><button class="btn quiet sm" data-qreset>${icon('repeat')}Partes iguales</button></div>
+      <div class="ch"><div><h2>Por quincena</h2><p class="qz-sub">Edita el monto del mes o el de cada quincena: la otra se ajusta sola. Elige con qué pagas cada concepto, marca cuáles son fijos y palomea lo que ya pagaste en cada quincena.</p></div><button class="btn quiet sm" data-qreset>${icon('repeat')}Partes iguales</button></div>
       <div class="qz-legend"><span class="l1">1ª · del 1 al 15</span><span class="l2">2ª · del 16 al ${last}</span></div>
       ${[[true, 'Gastos fijos', 'No se pueden recortar: renta, servicios, deudas…', 'shield'], [false, 'Gastos que puedes ajustar', 'De aquí sale el recorte si no cuadra', 'scissors']].map(([fx, t, sub, ic]) => `<div class="qz-sec ${fx ? 'fixed' : 'flex'}" data-sec="${fx ? 'fixed' : 'flex'}">
         <div class="qz-sec-h"><span class="qz-sec-ic">${icon(ic)}</span><div><b>${t}</b><small>${sub}</small></div></div>
@@ -269,6 +273,7 @@ function quincenasHTML(bs) {
         <label class="qz-inc"><small>Lo que entra</small><span class="qz-in"><i>$</i><input class="qn" type="number" inputmode="decimal" min="0" step="any" data-qi="${n}" value="${inc}"></span></label>
         <div class="qz-meter"><i></i></div>
         <div class="qz-badge" data-badge></div>
+        <div class="qz-paid"><div class="qz-paid-h"><span>${icon('check')}Pagado <b data-pd>$0</b></span><span>Falta <b data-pf>$0</b></span></div><div class="qz-paid-bar"><i data-pbar></i></div><small data-pn></small></div>
       </div>`).join('')}
       <div class="qz-qt qm"><div class="qz-qh"><b>Todo el mes</b><span>${monthLabel(S.month)}</span></div><div class="qz-big num" data-mneed>$0</div><div class="qz-cap">de <b data-minc></b> que entran</div><div class="qz-meter"><i></i></div><div class="qz-badge" data-mbadge></div></div>
     </div>
@@ -276,8 +281,42 @@ function quincenasHTML(bs) {
     <div class="qz-cards" data-cards></div>
   </section>`;
 }
+/* Marcar una quincena como pagada: pregunta si también se registra como movimiento */
+function qTogglePaid(ck, paint) {
+  const P = qPaid(); const pk = ck.dataset.chk; const [id, k] = pk.split(':'); const ym = S.month;
+  const row = ck.closest('[data-row]'); const name = row.querySelector('b').textContent;
+  const amt = parseFloat(row.querySelector(`[data-q=${k}]`).value) || 0; const qn = k === 'a' ? '1ª quincena' : '2ª quincena';
+  const payId = row.querySelector('[data-pay]').value; const isSave = id === QK_SAVE;
+  const card = byId(S.data.cards, payId); const acc = byId(S.data.accounts, payId) || (!card ? S.data.accounts[0] : null);
+  const setUI = on => { const f = ck.closest('.qz-f'); f.classList.toggle('paid', on); ck.setAttribute('aria-checked', on); f.querySelector('.qz-ptag').textContent = on ? 'pagado' : 'falta'; ck.classList.remove('pop'); void ck.offsetWidth; ck.classList.add('pop'); paint(); };
+  const refresh = () => { const y = scrollY; render(); window.scrollTo(0, y); };
+  if (!P[pk]) {
+    // fecha: hoy si cae en esa quincena de este mes; si no, el primer día de la quincena
+    const last = daysIn(ym); const today = todayISO(); const d = +today.slice(8, 10);
+    const date = today.slice(0, 7) === ym && (k === 'a' ? d <= 15 : d >= 16) ? today : `${ym}-${k === 'a' ? '01' : '16'}`;
+    const canTx = amt > 0 && (isSave ? !!acc : !!(card || acc));
+    const where = isSave ? (acc ? acc.name : '') : card ? `${card.name} (crédito)` : acc ? acc.name : '';
+    const btns = [];
+    if (canTx) btns.push({ label: `${icon('plus')}Sí, registrar movimiento`, cls: 'primary', fn: () => {
+      const tx = isSave ? { id: uid(), type: 'ahorro', amount: amt, date, desc: `Ahorro · ${qn}`, accountId: acc.id, categoryId: null, targetId: null, fixed: false, notes: '' }
+        : { id: uid(), type: 'gasto', amount: amt, date, desc: `${name} · ${qn}`, categoryId: id, accountId: card ? card.id : acc.id, method: card ? 'credito' : (acc.type === 'efectivo' ? 'efectivo' : 'debito'), fixed: isFixedCat(byId(S.data.categories, id) || {}), targetId: null, notes: '' };
+      S.data.transactions.push(tx); P[pk] = tx.id; saveData(); refresh(); toast(`Pagado y registrado: ${money0(amt)}`); } });
+    btns.push({ label: `${icon('check')}Solo marcar como pagado`, cls: canTx ? 'quiet' : 'primary', fn: () => { P[pk] = true; saveData(); setUI(true); toast('Marcado como pagado'); } });
+    choiceBox(`${name} · ${qn}: ¿lo registro como movimiento?`,
+      canTx ? `Se agrega un ${isSave ? 'ahorro' : 'gasto'} de <b>${money0(amt)}</b> el ${dateLabel(date)}${where ? ` desde <b>${esc(where)}</b>` : ''}, y cuenta en tu presupuesto del mes. Si ya lo registraste antes, elige «Solo marcar».`
+        : amt > 0 ? 'Para registrarlo como movimiento necesitas una cuenta. Elige con qué pagas este concepto o agrega una en Cuentas y ajustes.' : 'Este concepto no tiene monto en esta quincena.', btns);
+  } else {
+    const tx = typeof P[pk] === 'string' ? byId(S.data.transactions, P[pk]) : null;
+    if (!tx) { delete P[pk]; saveData(); setUI(false); return; }
+    choiceBox(`¿Desmarcar ${name} · ${qn}?`, `Cuando lo marcaste se registró un movimiento de <b>${money0(tx.amount)}</b> (${dateLabel(tx.date)}).`, [
+      { label: `${icon('trash')}Desmarcar y borrar el movimiento`, cls: 'danger', fn: () => { S.data.transactions = S.data.transactions.filter(t => t.id !== tx.id); delete P[pk]; saveData(); refresh(); toast('Movimiento borrado'); } },
+      { label: 'Solo desmarcar (conservar movimiento)', cls: 'quiet', fn: () => { delete P[pk]; saveData(); setUI(false); } },
+    ]);
+  }
+}
 function bindQuincenas(root) {
   root.querySelectorAll('[data-btab]').forEach(t => t.addEventListener('click', () => { S.budTab = t.dataset.btab; try { localStorage.setItem('rawmoney.budtab', S.budTab); } catch (e) {} render(); }));
+  bindFreelance(root);
   root.querySelectorAll('[data-unbudget]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); removeBudget(b.dataset.unbudget); }));
   const box = root.querySelector('#qz'); if (!box) return;
   const q = qState(); const pays = qPayOpts();
@@ -290,6 +329,12 @@ function bindQuincenas(root) {
     const A = sum(rows, r => r.a), B = sum(rows, r => r.b), M = sum(rows, r => r.m);
     box.querySelectorAll('[data-sec]').forEach(sec => { const rs = rows.filter(r => sec.contains(r.el)); [['m', 'm'], ['a', 'a'], ['b', 'b']].forEach(([k]) => { sec.querySelector(`[data-st=${k}]`).textContent = qMoney(sum(rs, r => r[k])); }); sec.classList.toggle('empty', !rs.length); });
     rows.forEach(r => { const p = r.m ? r.a / r.m * 100 : 50; r.el.style.setProperty('--pa', p + '%'); const po = pays.find(x => x.id === r.pay); r.el.style.setProperty('--pay', po ? po.color : 'var(--line-strong)'); r.el.classList.toggle('unpaid', !po); });
+    const P = qPaid(); const paidOf = k => sum(rows.filter(r => P[`${r.id}:${k}`]), r => r[k]); const cnt = k => rows.filter(r => r[k] > 0 && !P[`${r.id}:${k}`]).length;
+    [[0, 'a', A], [1, 'b', B]].forEach(([n, k, need]) => { const t = box.querySelector(`[data-qt="${n}"]`); const pd = paidOf(k); const c = cnt(k);
+      t.querySelector('[data-pd]').textContent = qMoney(pd); t.querySelector('[data-pf]').textContent = qMoney(Math.max(0, need - pd));
+      t.querySelector('[data-pbar]').style.width = (need ? Math.min(100, pd / need * 100) : 0) + '%';
+      t.querySelector('[data-pn]').textContent = c ? `${c} pago${c === 1 ? '' : 's'} pendiente${c === 1 ? '' : 's'}` : 'Todo pagado ✓'; t.classList.toggle('alldone', !c && need > 0); });
+    rows.forEach(r => r.el.classList.toggle('done', !!((r.a <= 0 || P[`${r.id}:a`]) && (r.b <= 0 || P[`${r.id}:b`]))));
     [[0, A], [1, B]].forEach(([n, need]) => { const t = box.querySelector(`[data-qt="${n}"]`); t.querySelector('[data-need]').textContent = qMoney(need); const ok = need <= I[n]; t.classList.toggle('bad', !ok); t.querySelector('.qz-meter i').style.width = Math.min(100, I[n] ? need / I[n] * 100 : 100) + '%'; t.querySelector('[data-badge]').innerHTML = status(need, I[n]); });
     const mt = box.querySelector('.qz-qt.qm'); mt.querySelector('[data-mneed]').textContent = qMoney(M); mt.querySelector('[data-minc]').textContent = qMoney(I[0] + I[1]); mt.classList.toggle('bad', M > I[0] + I[1]); mt.querySelector('.qz-meter i').style.width = Math.min(100, (I[0] + I[1]) ? M / (I[0] + I[1]) * 100 : 100) + '%'; mt.querySelector('[data-mbadge]').innerHTML = status(M, I[0] + I[1]);
     // por tarjeta / cuenta
@@ -325,6 +370,8 @@ function bindQuincenas(root) {
     saveData();
   });
   box.addEventListener('click', e => {
+    const ck = e.target.closest('[data-chk]');
+    if (ck) { qTogglePaid(ck, paint); return; }
     const k = e.target.closest('[data-kind]'); if (!k) return;
     const row = k.closest('[data-row]'); const toFixed = !row.closest('[data-sec=fixed]');
     setFixed(k.dataset.kind, toFixed);
@@ -348,8 +395,9 @@ function viewPresupuesto() {
   <div class="vtabs" role="tablist" aria-label="Vista del presupuesto">
     <button role="tab" data-btab="mes" aria-selected="${tab === 'mes'}" class="${tab === 'mes' ? 'on' : ''}">${icon('target')}<span>Mensual</span></button>
     <button role="tab" data-btab="quincena" aria-selected="${tab === 'quincena'}" class="${tab === 'quincena' ? 'on' : ''}">${icon('cal')}<span>Por quincena</span></button>
+    <button role="tab" data-btab="freelance" aria-selected="${tab === 'freelance'}" class="${tab === 'freelance' ? 'on' : ''}">${icon('briefcase')}<span>Freelance</span></button>
   </div>
-  ${tab === 'quincena' ? (quincenasHTML(bs) || '<div class="card"><div class="empty"><h3>Aún no hay conceptos</h3><p>Agrega conceptos con monto en la pestaña Mensual y aquí se reparten por quincena.</p></div></div>') : `
+  ${tab === 'freelance' ? freelanceHTML() : tab === 'quincena' ? (quincenasHTML(bs) || '<div class="card"><div class="empty"><h3>Aún no hay conceptos</h3><p>Agrega conceptos con monto en la pestaña Mensual y aquí se reparten por quincena.</p></div></div>') : `
   <section class="g23">
     <div class="card">${bs.length ? budGrouped(bs).map(b => b.head ? `<div class="bud-g"><span>${esc(b.head)}</span><div class="bud-g-n"><b class="num">${money0(b.spent)}</b><small>de ${money0(b.total)}</small></div></div>` : `<div class="bud${b.over ? ' over' : ''}">
       <div class="h">${catIcon(b.cat)}<div class="nm"><b>${esc(b.cat.name)}</b><small>Gastado <em>${money0(b.spent)}</em> de ${money0(b.budget)}</small></div>
