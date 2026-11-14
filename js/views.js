@@ -215,6 +215,18 @@ function qRows(bs) {
   if (S.data.savingsGoal) rows.push({ id: QK_SAVE, name: 'Ahorro (meta)', icon: 'piggy', color: col('#2D8F73'), total: S.data.savingsGoal, fixed: !!q.saveFixed });
   return rows.map(r => { const a = Math.min(r.total, Math.max(0, q.q1[r.id] ?? Math.round(r.total / 2))); return { ...r, a, b: r.total - a, pay: q.pay[r.id] || '' }; });
 }
+/* Quita un gasto del presupuesto (la categoría se conserva en Categorías y en “Sin presupuesto”) */
+function removeBudget(id) {
+  const isSave = id === QK_SAVE; const c = isSave ? null : byId(S.data.categories, id);
+  const name = isSave ? 'Ahorro (meta)' : (c ? c.name : 'este gasto'); const amt = isSave ? S.data.savingsGoal : S.data.budgets[id];
+  confirmBox(`¿Quitar ${name} del presupuesto?`, `Se quita de Mensual y de Por quincena (${money0(amt || 0)} al mes). ${isSave ? 'Tu meta de ahorro queda en cero.' : 'La categoría y sus movimientos se conservan; puedes volver a agregarla desde «Sin presupuesto».'}`, () => {
+    const q = qState();
+    if (isSave) S.data.savingsGoal = 0; else delete S.data.budgets[id];
+    delete q.q1[id]; delete q.pay[id];
+    saveData(); const y = scrollY; render(); window.scrollTo(0, y);
+    toast(`${name} quitado del presupuesto`);
+  }, 'Quitar');
+}
 /* Fijo = no se puede recortar (renta, deudas…). Por default: Casa y Deudas son fijos; se puede cambiar */
 const isFixedCat = c => c.fixedCost ?? ['casa', 'deudas'].includes(c.group);
 function setFixed(id, on) { if (id === QK_SAVE) qState().saveFixed = on; else { const c = byId(S.data.categories, id); if (c) c.fixedCost = on; } saveData(); }
@@ -240,7 +252,7 @@ function quincenasHTML(bs) {
         <div class="qz-sec-h"><span class="qz-sec-ic">${icon(ic)}</span><div><b>${t}</b><small>${sub}</small></div><div class="qz-sec-t"><span><em>Mes</em><b data-st="m">$0</b></span><span class="t1"><em>1ª</em><b data-st="a">$0</b></span><span class="t2"><em>2ª</em><b data-st="b">$0</b></span></div></div>
         <div class="qz-list">
       ${rows.filter(r => r.fixed === fx).map(r => `<div class="qz-row" data-row="${r.id}" style="--cat:${r.color}">
-        <div class="qz-name"><span class="qz-ic">${icon(r.icon || 'dots')}</span><b>${esc(r.name)}</b><button type="button" class="qz-kind" data-kind="${r.id}" aria-label="Cambiar entre fijo y ajustable">${r.fixed ? `${icon('shield')}Fijo` : `${icon('scissors')}Ajustable`}</button></div>
+        <div class="qz-name"><span class="qz-ic">${icon(r.icon || 'dots')}</span><b>${esc(r.name)}</b><button type="button" class="qz-kind" data-kind="${r.id}" aria-label="Cambiar entre fijo y ajustable">${r.fixed ? `${icon('shield')}Fijo` : `${icon('scissors')}Ajustable`}</button><button type="button" class="qz-del" data-unbudget="${r.id}" aria-label="Quitar ${esc(r.name)}" title="Quitar del presupuesto">${icon('trash')}</button></div>
         <label class="qz-pay"><span class="qz-dot"></span><select data-pay="${r.id}" aria-label="Con qué pagas ${esc(r.name)}">${opt(r)}</select></label>
         ${field('fm', 'Mes', 'm', r, r.total)}${field('fa', '1ª<span class="lg"> quincena</span>', 'a', r, r.a)}${field('fb', '2ª<span class="lg"> quincena</span>', 'b', r, r.b)}
         <div class="qz-split" aria-hidden="true"><i class="sa"></i><i class="sb"></i></div>
@@ -265,6 +277,7 @@ function quincenasHTML(bs) {
 }
 function bindQuincenas(root) {
   root.querySelectorAll('[data-btab]').forEach(t => t.addEventListener('click', () => { S.budTab = t.dataset.btab; try { localStorage.setItem('rawmoney.budtab', S.budTab); } catch (e) {} render(); }));
+  root.querySelectorAll('[data-unbudget]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); removeBudget(b.dataset.unbudget); }));
   const box = root.querySelector('#qz'); if (!box) return;
   const q = qState(); const pays = qPayOpts();
   const num = el => Math.max(0, parseFloat(el.value) || 0);
@@ -337,7 +350,7 @@ function viewPresupuesto() {
   </div>
   ${tab === 'quincena' ? (quincenasHTML(bs) || '<div class="card"><div class="empty"><h3>Aún no hay conceptos</h3><p>Agrega conceptos con monto en la pestaña Mensual y aquí se reparten por quincena.</p></div></div>') : `
   <section class="g23">
-    <div class="card">${bs.length ? budGrouped(bs).map(b => b.head ? `<div class="bud-g"><span>${esc(b.head)}</span><b class="num">${money0(b.total)}</b><small>${money0(b.spent)} gastado</small></div>` : `<div class="bud${b.over ? ' over' : ''}"><div class="h">${catIcon(b.cat)}<div class="nm">${esc(b.cat.name)}<small>Presupuesto ${money0(b.budget)} · ${b.over ? `excedido por ${money0(-b.left)}` : `disponible ${money0(b.left)}`}</small></div><div class="v"><b>${money0(b.spent)}</b><span>${pct(b.pct)} usado</span></div></div><div class="bar ${b.over ? 'b' : b.pct > 85 ? 'w' : 'g'}"><i style="width:${Math.min(100, b.pct)}%"></i></div>${b.over ? `<div class="alert">${icon('alert')}Te pasaste del presupuesto de ${esc(b.cat.name)}</div>` : ''}<button class="edit" data-budget="${b.cat.id}">Editar concepto</button></div>`).join('') : `<div class="empty"><h3>Sin presupuestos</h3><p>Agrega tus conceptos (renta, súper, café…) con un monto para saber cuánto te queda.</p><button class="btn primary" data-act="new-budget">${icon('plus')}<span>Nuevo concepto</span></button></div>`}</div>
+    <div class="card">${bs.length ? budGrouped(bs).map(b => b.head ? `<div class="bud-g"><span>${esc(b.head)}</span><b class="num">${money0(b.total)}</b><small>${money0(b.spent)} gastado</small></div>` : `<div class="bud${b.over ? ' over' : ''}"><div class="h">${catIcon(b.cat)}<div class="nm">${esc(b.cat.name)}<small>Presupuesto ${money0(b.budget)} · ${b.over ? `excedido por ${money0(-b.left)}` : `disponible ${money0(b.left)}`}</small></div><div class="v"><b>${money0(b.spent)}</b><span>${pct(b.pct)} usado</span></div></div><div class="bar ${b.over ? 'b' : b.pct > 85 ? 'w' : 'g'}"><i style="width:${Math.min(100, b.pct)}%"></i></div>${b.over ? `<div class="alert">${icon('alert')}Te pasaste del presupuesto de ${esc(b.cat.name)}</div>` : ''}<div class="bud-acts"><button class="edit" data-budget="${b.cat.id}">${icon('edit')}Editar concepto</button><button class="edit del" data-unbudget="${b.cat.id}">${icon('trash')}Quitar</button></div></div>`).join('') : `<div class="empty"><h3>Sin presupuestos</h3><p>Agrega tus conceptos (renta, súper, café…) con un monto para saber cuánto te queda.</p><button class="btn primary" data-act="new-budget">${icon('plus')}<span>Nuevo concepto</span></button></div>`}</div>
     <div class="card soft"><div class="ch"><h2>Resumen</h2></div>
       <div class="stat"><div class="lb">Total presupuestado</div><div class="v num">${money0(totalB)}</div><div class="s">${s.ingresos ? `${pct(totalB / s.ingresos * 100)} de tus ingresos del mes` : ''}</div></div>
       <div class="bar thick ${totalS > totalB ? 'b' : 'g'}"><i style="width:${totalB ? Math.min(100, totalS / totalB * 100) : 0}%"></i></div>

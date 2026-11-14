@@ -1041,3 +1041,13 @@ body{background-color:var(--bg);background-image:var(--grain);background-size:18
 }
 @media (max-width:640px){.qz-f .lg{display:none}}
 @media (max-width:640px){.qz-name b{white-space:normal;overflow:visible;line-height:1.2;font-size:14.5px}.qz-kind{font-size:11.5px;padding:5px 8px;gap:4px}.qz-kind .i{width:13px;height:13px}}
+
+/* Quitar gasto */
+.bud-acts{display:flex;gap:16px;align-items:center}
+.bud .edit{display:inline-flex;align-items:center;gap:5px}
+.bud .edit .i{width:14px;height:14px}
+.bud .edit.del{color:var(--bad)}
+.qz-del{flex:none;width:32px;height:32px;display:grid;place-items:center;border-radius:10px;border:1.5px solid var(--line-strong);background:var(--surface);color:var(--ink-3);cursor:pointer;transition:color .2s,border-color .2s,background .2s,transform .12s var(--press)}
+.qz-del .i{width:15px;height:15px}
+.qz-del:hover{color:var(--bad);border-color:var(--bad);background:var(--bad-soft)}
+.qz-del:active{transform:scale(.92)}
