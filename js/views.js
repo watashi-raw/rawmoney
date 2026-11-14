@@ -16,7 +16,7 @@ function txRow(t, click = true) {
   const meta = { ingreso: { ic: 'arrowDown', col: 'var(--green)', sign: '+' }, gasto: { ic: null, col: null, sign: '−' }, transferencia: { ic: 'swap', col: 'var(--ink-3)', sign: '' }, pago_deuda: { ic: 'bank', col: 'var(--bad)', sign: '−' }, pago_tarjeta: { ic: 'card', col: 'var(--plum)', sign: '−' }, ahorro: { ic: 'piggy', col: 'var(--green)', sign: '' } }[t.type];
   const ic = c ? catIcon(c) : `<span class="ic" style="--cat:${meta.col};--cat-soft:color-mix(in srgb, ${meta.col} 14%, var(--surface))">${icon(meta.ic)}</span>`;
   const sub = [c ? c.name : TYPES[t.type], t.type === 'transferencia' ? `${accountName(t.accountId)} → ${accountName(t.targetId)}` : t.type === 'pago_tarjeta' ? `a ${accountName(t.targetId)}` : t.type === 'pago_deuda' ? `a ${(byId(S.data.debts, t.targetId) || {}).name || '—'}` : accountName(t.accountId), METHODS[t.method]].filter(Boolean).join(' · ');
-  const tags = `${t.recurringId ? '<span class="tag rec">Recurrente</span>' : t.fixed && t.type === 'gasto' ? '<span class="tag">Fijo</span>' : ''}`;
+  const tags = `${t.recurringId ? '<span class="tag rec">Recurrente</span>' : t.fixed && ['gasto', 'ingreso', 'pago_deuda'].includes(t.type) ? '<span class="tag">Fijo</span>' : ''}`;
   const cls = t.type === 'ingreso' || t.type === 'ahorro' ? 'pos' : t.type === 'pago_deuda' ? 'neg' : t.type === 'transferencia' ? 'mut' : '';
   return `<div class="row${click ? ' click' : ''}" data-tx="${t.id}">${ic}<div class="tx"><b>${esc(t.desc)} ${tags}</b><span>${dateLabel(t.date)} · ${esc(sub)}</span></div><div class="am ${cls}">${meta.sign}${money(t.amount)}</div></div>`;
 }
@@ -200,15 +200,21 @@ function viewRecurrentes() {
 }
 
 /* ---------- PRESUPUESTO ---------- */
+/* Ordena los presupuestos por grupo (si las categorías tienen uno) e inserta encabezados con subtotal */
+function budGrouped(bs) {
+  if (!bs.some(b => b.cat.group)) return bs;
+  const G = [...PLAN_GROUPS, ['', 'Otros conceptos']];
+  return G.flatMap(([g, gl]) => { const its = bs.filter(b => (b.cat.group || '') === g || (g === '' && !PLAN_GROUPS.some(x => x[0] === b.cat.group))); return its.length ? [{ head: gl, total: sum(its, b => b.budget), spent: sum(its, b => b.spent) }, ...its] : []; });
+}
 function viewPresupuesto() {
   const ym = S.month; const bs = budgetStatus(ym); const s = monthSummary(ym);
   const totalB = sum(bs, b => b.budget), totalS = sum(bs, b => b.spent);
   const without = S.data.categories.filter(c => c.kind === 'gasto' && !S.data.budgets[c.id]);
   return `
   <div class="ph"><div><div class="eyebrow">${monthLabel(ym)}</div><h1>Presupuesto mensual</h1><p>Presupuestado <b class="num">${money0(totalB)}</b> · gastado <b class="num">${money0(totalS)}</b> · ${bs.filter(b => b.over).length ? `<b class="neg">${bs.filter(b => b.over).length} categoría${bs.filter(b => b.over).length === 1 ? '' : 's'} excedida${bs.filter(b => b.over).length === 1 ? '' : 's'}</b>` : 'todo en orden'}</p></div>
-    <div class="acts"><button class="btn primary" data-act="new-budget">${icon('plus')}<span>Asignar presupuesto</span></button></div></div>
+    <div class="acts"><button class="btn" data-act="plan">${icon('sparkle')}<span>Cargar mi plan</span></button><button class="btn primary" data-act="new-budget">${icon('plus')}<span>Nuevo concepto</span></button></div></div>
   <section class="g23">
-    <div class="card">${bs.length ? bs.map(b => `<div class="bud${b.over ? ' over' : ''}"><div class="h">${catIcon(b.cat)}<div class="nm">${esc(b.cat.name)}<small>Presupuesto ${money0(b.budget)} · ${b.over ? `excedido por ${money0(-b.left)}` : `disponible ${money0(b.left)}`}</small></div><div class="v"><b>${money0(b.spent)}</b><span>${pct(b.pct)} usado</span></div></div><div class="bar ${b.over ? 'b' : b.pct > 85 ? 'w' : 'g'}"><i style="width:${Math.min(100, b.pct)}%"></i></div>${b.over ? `<div class="alert">${icon('alert')}Te pasaste del presupuesto de ${esc(b.cat.name)}</div>` : ''}<button class="edit" data-budget="${b.cat.id}">Editar presupuesto</button></div>`).join('') : '<div class="empty"><h3>Sin presupuestos</h3><p>Asigna un monto por categoría para saber cuánto te queda.</p></div>'}</div>
+    <div class="card">${bs.length ? budGrouped(bs).map(b => b.head ? `<div class="bud-g"><span>${esc(b.head)}</span><b class="num">${money0(b.total)}</b><small>${money0(b.spent)} gastado</small></div>` : `<div class="bud${b.over ? ' over' : ''}"><div class="h">${catIcon(b.cat)}<div class="nm">${esc(b.cat.name)}<small>Presupuesto ${money0(b.budget)} · ${b.over ? `excedido por ${money0(-b.left)}` : `disponible ${money0(b.left)}`}</small></div><div class="v"><b>${money0(b.spent)}</b><span>${pct(b.pct)} usado</span></div></div><div class="bar ${b.over ? 'b' : b.pct > 85 ? 'w' : 'g'}"><i style="width:${Math.min(100, b.pct)}%"></i></div>${b.over ? `<div class="alert">${icon('alert')}Te pasaste del presupuesto de ${esc(b.cat.name)}</div>` : ''}<button class="edit" data-budget="${b.cat.id}">Editar concepto</button></div>`).join('') : `<div class="empty"><h3>Sin presupuestos</h3><p>Agrega tus conceptos (renta, súper, café…) con un monto para saber cuánto te queda.</p><button class="btn primary" data-act="new-budget">${icon('plus')}<span>Nuevo concepto</span></button></div>`}</div>
     <div class="card soft"><div class="ch"><h2>Resumen</h2></div>
       <div class="stat"><div class="lb">Total presupuestado</div><div class="v num">${money0(totalB)}</div><div class="s">${s.ingresos ? `${pct(totalB / s.ingresos * 100)} de tus ingresos del mes` : ''}</div></div>
       <div class="bar thick ${totalS > totalB ? 'b' : 'g'}"><i style="width:${totalB ? Math.min(100, totalS / totalB * 100) : 0}%"></i></div>

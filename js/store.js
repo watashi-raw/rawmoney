@@ -27,10 +27,31 @@ const METHODS = { efectivo: 'Efectivo', debito: 'Débito', credito: 'Crédito', 
 const FREQ = { mensual: 'Mensual', quincenal: 'Quincenal', semanal: 'Semanal', bimestral: 'Bimestral', anual: 'Anual' };
 
 /* Paleta de categorías · Pantone: Vivacious, Fragile Sprout, Bison, Veiled Pink, Cardamom Seed, Brush, Pickled Beet, Malaga, Green Oasis… */
-const CAT_COLORS = ['#9B2B5A', '#A3A93A', '#6B5240', '#D98FA0', '#73743A', '#B39E8B', '#4A2639', '#B4607E', '#C9B85C', '#8C6A55', '#7A1E4E', '#5E6B2E', '#A99A97'];
-const OTHERS_COLOR = '#A99A97';
-/* Colores de la paleta anterior → su equivalente en la nueva (las categorías guardadas conservan su valor viejo) */
-const OLD_COLORS = { '#AE86CF': 0, '#6DB27C': 1, '#8AA6E3': 2, '#C9A247': 8, '#D87484': 3, '#5DB3A4': 4, '#C88AB0': 7, '#D0876F': 9, '#7F93C4': 6, '#CFA07C': 5, '#B98CA0': 10, '#A9B27A': 11, '#8F8F96': 12, '#8A3B75': 0, '#3F7FBF': 6 };
+/* Paleta de categorías: 16 tonos repartidos en todo el círculo cromático con la misma
+   luminosidad y saturación (OKLCH L .585 · C .10), más un gris cálido para “Otros”. */
+const CAT_COLORS = ['#A86284', '#AF616B', '#AF6552', '#A86C3C', '#9B742D', '#877E2F', '#6E8640', '#508C59', '#2D8F73', '#028E8B', '#128AA1', '#3884B0', '#587CB7', '#7374B5', '#8A6CAB', '#9B669A', '#8D8481'];
+const OTHERS_COLOR = '#8D8481';
+/* Orden para repartir colores sin que dos vecinos se parezcan */
+const CAT_SPREAD = [15, 7, 11, 1, 14, 3, 5, 9, 12, 10, 0, 4, 16, 13, 2, 8, 6];
+/* Paletas anteriores → índice en la nueva (las categorías guardadas se migran una vez) */
+const PREV_COLORS = ['#9B2B5A', '#A3A93A', '#6B5240', '#D98FA0', '#73743A', '#B39E8B', '#4A2639', '#B4607E', '#C9B85C', '#8C6A55', '#7A1E4E', '#5E6B2E', '#A99A97'];
+const OLD_COLORS = Object.fromEntries([
+  ...PREV_COLORS.map((h, i) => [h, CAT_SPREAD[i]]),
+  ...Object.entries({ '#AE86CF': 0, '#6DB27C': 1, '#8AA6E3': 2, '#C9A247': 8, '#D87484': 3, '#5DB3A4': 4, '#C88AB0': 7, '#D0876F': 9, '#7F93C4': 6, '#CFA07C': 5, '#B98CA0': 10, '#A9B27A': 11, '#8F8F96': 12, '#8A3B75': 0, '#3F7FBF': 6 }).map(([h, i]) => [h, CAT_SPREAD[i]]),
+]);
+/* Pasa las categorías a la paleta nueva y evita colores repetidos dentro de gastos o ingresos */
+function migratePalette(d) {
+  if (!d || d.palette === 2 || !Array.isArray(d.categories)) return false;
+  const used = { gasto: new Set(), ingreso: new Set() };
+  d.categories.forEach(c => {
+    const u = used[c.kind] || (used[c.kind] = new Set());
+    let hex = String(c.color || '').toUpperCase();
+    if (hex in OLD_COLORS) hex = CAT_COLORS[OLD_COLORS[hex]];
+    if (!hex || u.has(hex)) hex = CAT_SPREAD.map(i => CAT_COLORS[i]).find(x => !u.has(x)) || hex;
+    c.color = hex; u.add(hex);
+  });
+  d.palette = 2; return true;
+}
 const isLightTheme = () => document.documentElement.dataset.theme === 'light' || (!document.documentElement.dataset.theme && matchMedia('(prefers-color-scheme: light)').matches);
 /* En tema oscuro los colores se aclaran para que contrasten sobre el fondo vino */
 const col = hex => {
@@ -108,10 +129,10 @@ function defaultCategories() {
     ['salud', 'Salud', 'heart', 7], ['entretenimiento', 'Entretenimiento', 'play', 3], ['compras', 'Compras', 'bag', 4],
     ['servicios', 'Servicios', 'bolt', 5], ['suscripciones', 'Suscripciones', 'repeat', 6], ['educacion', 'Educación', 'book', 8],
     ['viajes', 'Viajes', 'plane', 9], ['cuidado', 'Cuidado personal', 'sparkle', 10], ['mascotas', 'Mascotas', 'paw', 11], ['otros', 'Otros', 'dots', 12],
-  ].map(([id, name, ic, ci]) => ({ id, name, icon: ic, color: CAT_COLORS[ci], kind: 'gasto' }));
+  ].map(([id, name, ic, ci]) => ({ id, name, icon: ic, color: CAT_COLORS[CAT_SPREAD[ci]], kind: 'gasto' }));
   const i = [
     ['sueldo', 'Sueldo', 'briefcase', 1], ['negocio', 'Negocio / freelance', 'wallet', 5], ['otros_ing', 'Otros ingresos', 'gift', 6],
-  ].map(([id, name, ic, ci]) => ({ id, name, icon: ic, color: CAT_COLORS[ci], kind: 'ingreso' }));
+  ].map(([id, name, ic, ci]) => ({ id, name, icon: ic, color: CAT_COLORS[CAT_SPREAD[ci]], kind: 'ingreso' }));
   return [...g, ...i];
 }
 
@@ -211,6 +232,6 @@ const S = { data: null, month: thisMonth(), view: 'inicio', filters: {}, histA: 
 function loadData() { try { const raw = localStorage.getItem(DB_KEY); if (raw) { const d = JSON.parse(raw); if (d && d.version === 1) return d; } } catch (e) {} return null; }
 function saveData() { try { localStorage.setItem(DB_KEY, JSON.stringify(S.data)); } catch (e) {} if (typeof cloudSave === 'function') cloudSave(); }
 function byId(list, id) { return (list || []).find(x => x.id === id); }
-function cat(id) { return byId(S.data.categories, id) || { id: 'otros', name: 'Sin categoría', icon: 'dots', color: '#A99A97', kind: 'gasto' }; }
+function cat(id) { return byId(S.data.categories, id) || { id: 'otros', name: 'Sin categoría', icon: 'dots', color: OTHERS_COLOR, kind: 'gasto' }; }
 function accountName(id) { const a = byId(S.data.accounts, id) || byId(S.data.cards, id); return a ? a.name : '—'; }
 function allAccounts() { return [...S.data.accounts.map(a => ({ ...a, isCard: false })), ...S.data.cards.map(c => ({ ...c, isCard: true }))]; }

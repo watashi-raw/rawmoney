@@ -23,7 +23,7 @@ async function exportJSON() {
 
 const ACTIONS = {
   'new-gasto': () => formTx(null, { type: 'gasto' }), 'new-ingreso': () => formTx(null, { type: 'ingreso', categoryId: 'sueldo', method: 'transferencia' }),
-  'new-tarjeta': () => formCard(null), 'new-deuda': () => formDebt(null), 'new-meses': () => formInstallment(null), 'new-rec': () => formRecurring(null), 'new-cat': () => formCategory(null), 'new-acc': () => formAccount(null), 'new-budget': () => formBudget(null),
+  'new-tarjeta': () => formCard(null), 'new-deuda': () => formDebt(null), 'new-meses': () => formInstallment(null), 'new-rec': () => formRecurring(null), 'new-cat': () => formCategory(null), 'new-acc': () => formAccount(null), 'new-budget': () => formBudget(null), 'plan': () => openPlan(),
   'new-pago-tarjeta': () => formTx(null, { type: 'pago_tarjeta', targetId: (S.data.cards[0] || {}).id, method: 'transferencia' }), 'new-pago-deuda': () => formTx(null, { type: 'pago_deuda', targetId: (S.data.debts[0] || {}).id, method: 'transferencia' }),
   'new-ahorro': () => formTx(null, { type: 'ahorro', method: 'transferencia' }), 'new-transfer': () => formTx(null, { type: 'transferencia', method: 'transferencia', targetId: (S.data.accounts[1] || {}).id }),
   'add': () => openAddSheet(),
@@ -74,6 +74,7 @@ function shell() {
 function render() {
   const app = document.getElementById('app');
   if (S.locked) { app.className = ''; app.innerHTML = coverHTML(); bindCover(app); document.title = 'Raw Money'; window.scrollTo(0, 0); Cat.sync(true); return; }
+  if (migratePalette(S.data)) saveData();
   app.className = 'app';
   materializeRecurring(S.month);
   const scrollY = window.scrollY;
