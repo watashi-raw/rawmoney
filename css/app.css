@@ -940,3 +940,13 @@ body{background-color:var(--bg);background-image:var(--grain);background-size:18
   .qz-st{grid-template-columns:1fr}
   .qz .ch{flex-direction:column}
 }
+
+/* Pestañas dentro de una pantalla */
+.vtabs{display:inline-flex;gap:4px;padding:4px;margin:0 0 16px;border:1.5px solid var(--edge);border-radius:14px;background:var(--surface-2);box-shadow:3px 3px 0 var(--hard)}
+.vtabs button{display:inline-flex;align-items:center;gap:7px;border:0;background:transparent;color:var(--ink-2);font:700 14px var(--font);padding:9px 16px;border-radius:10px;cursor:pointer;transition:background .2s,color .2s,transform .12s var(--press)}
+.vtabs button .i{width:17px;height:17px}
+.vtabs button:hover{color:var(--ink)}
+.vtabs button.on{background:var(--berry);color:var(--on-tone)}
+.vtabs button:active{transform:scale(.96)}
+.qz.qz-tab{margin-top:0;animation:fadeUp .35s ease both}
+@media (max-width:640px){.vtabs{display:flex}.vtabs button{flex:1;justify-content:center;padding:9px 8px}}
