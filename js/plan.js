@@ -144,40 +144,56 @@ function bindFreelance(root) {
   });
 }
 
-/* ---------- Disponible para ti: lo que sobra del sueldo tras tus gastos + lo libre de freelance ---------- */
+/* ---------- Disponible para ti, por quincena: sueldo de la quincena − su parte del plan − lo de fuera del plan + freelance libre ---------- */
 function disponibleParaTi(ym) {
-  const flIds = new Set(flCats().map(c => c.id));
+  const flIds = new Set(flCats().map(c => c.id)); const B = S.data.budgets || {};
   const T = S.data.transactions.filter(t => inMonth(t, ym));
-  const sueldo = sum(T.filter(t => t.type === 'ingreso' && !flIds.has(t.categoryId)));
-  const q = S.data.quincenas; const B = S.data.budgets || {};
-  const planned = (q && q.income && q.income.length === 2) || Object.keys(B).length ? sum(qIncome(), v => v) : 0;
-  const base = sueldo || planned;
-  // gastos del mes sin contar los pagados con freelance (esos salen de la parte freelance)
+  const inQ = (t, k) => (+t.date.slice(8, 10) <= 15) === (k === 'a');
+  const q = S.data.quincenas; const hasPlan = (q && q.income && q.income.length === 2) || Object.keys(B).length > 0;
+  const planIn = hasPlan ? qIncome() : [0, 0];
+  const rows = qRows(budgetStatus(ym));
+  const goal = S.data.savingsGoal || 0;
+  const gNF = T.filter(t => t.type === 'gasto' && !t.fromFreelance);
+  const savNF = T.filter(t => t.type === 'ahorro' && !t.fromFreelance && !t.fromTx && !/^Ahorro de /.test(t.desc || ''));
+  // fuera de plan del mes completo (incluye mensualidades a meses)
   const byCat = { ...monthSummary(ym).byCat };
   T.filter(t => t.type === 'gasto' && t.fromFreelance).forEach(t => { const k = t.categoryId || 'otros'; byCat[k] = (byCat[k] || 0) - t.amount; });
-  let plan = 0, extra = 0;
-  Object.entries(B).forEach(([id, b]) => { if (b > 0) { plan += b; extra += Math.max(0, (byCat[id] || 0) - b); } });
-  Object.entries(byCat).forEach(([id, v]) => { if (!(B[id] > 0) && v > 0) extra += v; });
-  const goal = S.data.savingsGoal || 0;
-  const saved = sum(T.filter(t => t.type === 'ahorro' && !t.fromFreelance && !t.fromTx && !/^Ahorro de /.test(t.desc || '')));
-  plan += goal; extra += Math.max(0, saved - goal);
-  const sobrante = base - plan - extra;
-  const F = freelanceData(ym); const flLibre = F.tot.mine - F.used.mine;
-  return { base, real: !!sueldo, plan, extra, sobrante, flTot: F.tot.mine, flUsed: F.used.mine, flLibre, hasFl: flCats().length > 0, total: sobrante + flLibre };
+  let extraM = 0;
+  Object.entries(B).forEach(([id, b]) => { if (b > 0) extraM += Math.max(0, (byCat[id] || 0) - b); });
+  Object.entries(byCat).forEach(([id, v]) => { if (!(B[id] > 0) && v > 0) extraM += v; });
+  extraM += Math.max(0, sum(savNF) - goal);
+  // fuera de plan de la 1ª quincena: lo que rebasó su parte de la 1ª; la 2ª se lleva el resto del mes
+  let extraA = 0;
+  rows.forEach(r => { const sp = r.id === QK_SAVE ? sum(savNF.filter(t => inQ(t, 'a'))) : sum(gNF.filter(t => t.categoryId === r.id && inQ(t, 'a'))); extraA += Math.max(0, sp - r.a); });
+  extraA += sum(gNF.filter(t => inQ(t, 'a') && !(B[t.categoryId || 'otros'] > 0)));
+  const F = freelanceData(ym);
+  const flA = sum(F.incomes.filter(i => inQ(i.t, 'a')), i => i.mine) - sum(F.spent.filter(t => inQ(t, 'a') && !isTransCat(t.categoryId)));
+  const mk = (k, i) => {
+    const real = sum(T.filter(t => t.type === 'ingreso' && !flIds.has(t.categoryId) && inQ(t, k)));
+    const income = real || planIn[i]; const plan = sum(rows, r => r[k]);
+    const extra = k === 'a' ? extraA : extraM - extraA;
+    const fl = k === 'a' ? flA : (F.tot.mine - F.used.mine) - flA;
+    return { k, real: !!real, income, plan, extra, sobrante: income - plan - extra, fl, total: income - plan - extra + fl };
+  };
+  const Q = [mk('a', 0), mk('b', 1)];
+  const cur = ym === thisMonth() ? (+todayISO().slice(8, 10) <= 15 ? 'a' : 'b') : ym < thisMonth() ? 'b' : 'a';
+  return { Q, cur, now: Q[cur === 'a' ? 0 : 1], month: Q[0].total + Q[1].total, sueldoM: Q[0].sobrante + Q[1].sobrante, flM: F.tot.mine - F.used.mine, hasFl: flCats().length > 0, any: Q.some(x => x.income) || F.tot.mine > 0 };
 }
 function disponibleHTML(ym) {
-  const D = disponibleParaTi(ym); if (!D.base && !D.flTot) return '';
-  const neg = D.total < 0; const a = Math.max(0, D.sobrante), b = Math.max(0, D.flLibre);
-  return `<section class="card mine${neg ? ' over' : ''}" aria-label="Disponible para ti">
+  const D = disponibleParaTi(ym); if (!D.any) return '';
+  const last = daysIn(ym), mes = MESES_C[+ym.slice(5) - 1];
+  const qn = k => k === 'a' ? '1ª quincena' : '2ª quincena', rng = k => k === 'a' ? `1–15 ${mes}` : `16–${last} ${mes}`;
+  const m2 = v => `${v < 0 ? '−' : ''}${money2(Math.abs(v))}`;
+  const N = D.now, neg = N.total < 0;
+  return `<section class="card mine${neg ? ' over' : ''}" aria-label="Disponible para ti por quincena">
     <div class="mine-l">
-      <div class="eyebrow">${icon('sparkle')}${neg ? 'Te faltan para ti' : 'Disponible para ti'}</div>
-      <div class="mine-big num">${neg ? '−' : ''}${money2(Math.abs(D.total))}</div>
-      <p>${neg ? 'Tus gastos y apartados superan lo que entra. Revisa el presupuesto.' : 'Lo que te sobra del sueldo después de tus gastos y ahorro, más lo libre de tus trabajos freelance. Es tuyo para gastar sin culpa.'}</p>
-      ${a + b > 0 ? `<div class="mine-bar">${a ? `<i class="s" style="flex:${a}"></i>` : ''}${b ? `<i class="f" style="flex:${b}"></i>` : ''}</div>` : ''}
+      <div class="eyebrow">${icon('sparkle')}${neg ? 'Te faltan para ti' : 'Disponible para ti'} · ${qn(N.k)}</div>
+      <div class="mine-big num">${m2(N.total)}</div>
+      <p>${neg ? `En la ${qn(N.k)} lo planeado y gastado supera lo que entra. Revisa el reparto en Presupuesto › Por quincena.` : `Lo que te sobra de esta quincena (${rng(N.k)}) después de tus gastos y ahorro, más lo libre de freelance. Es tuyo para gastar sin culpa.`}</p>
+      <div class="mine-note">${icon('cal')}<span>En todo el mes: <b class="num${D.month < 0 ? ' neg' : ''}">${m2(D.month)}</b> · sueldo ${m2(D.sueldoM)}${D.hasFl ? ` + freelance ${m2(D.flM)}` : ''}</span></div>
     </div>
     <div class="mine-r">
-      <div class="mine-row"><span class="dot s"></span><div class="mine-t"><b>Sobrante del sueldo</b><small>${D.real ? 'Entró' : 'Planeado'} ${money2(D.base)} − plan ${money2(D.plan)}${D.extra ? ` − fuera de plan ${money2(D.extra)}` : ''}</small></div><b class="num${D.sobrante < 0 ? ' neg' : ''}">${D.sobrante < 0 ? '−' : ''}${money2(Math.abs(D.sobrante))}</b></div>
-      <div class="mine-row"><span class="dot f"></span><div class="mine-t"><b>Freelance para ti</b><small>${D.hasFl ? (D.flTot ? `De ${money2(D.flTot)} · ya usaste ${money2(D.flUsed)}` : 'Sin ingresos freelance este mes') : 'Carga tu plan para separar el freelance'}</small></div><b class="num${D.flLibre < 0 ? ' neg' : ''}">${D.flLibre < 0 ? '−' : ''}${money2(Math.abs(D.flLibre))}</b></div>
+      ${D.Q.map(x => `<div class="mine-row${x.k === D.cur ? ' on' : ''}"><span class="dot ${x.k}"></span><div class="mine-t"><b>${qn(x.k)}${x.k === D.cur ? ' <em>ahora</em>' : ''}</b><small>${x.real ? 'Entró' : 'Planeado'} ${money2(x.income)} − plan ${money2(x.plan)}${x.extra > 0 ? ` − ${x.k === 'a' ? 'de más o adelantado' : 'fuera de plan'} ${money2(x.extra)}` : x.extra < 0 ? ` + ya pagado en la 1ª ${money2(-x.extra)}` : ''}${x.fl ? ` ${x.fl < 0 ? '−' : '+'} freelance ${money2(Math.abs(x.fl))}` : ''}</small></div><b class="num${x.total < 0 ? ' neg' : ''}">${m2(x.total)}</b></div>`).join('')}
       <button class="lnk" data-go="presupuesto">Ver presupuesto</button>
     </div>
   </section>`;
