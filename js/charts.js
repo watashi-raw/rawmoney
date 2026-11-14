@@ -25,10 +25,11 @@ function donutSVG(items, centerLabel, centerValue) {
       path = `M${p(R, s)} A${R},${R} 0 ${big} 1 ${p(R, e)} L${p(r, e)} A${r},${r} 0 ${big} 0 ${p(r, s)} Z`;
     }
     a0 = a1;
-    return `<path d="${path}" fill="${it.color}" data-tip="<b>${esc(it.label)}</b>${money0(it.value)} · ${pct(frac * 100)}" data-key="${esc(it.key || it.label)}"></path>`;
+    const ds = `data-s="${(s).toFixed(4)}" data-e="${(e).toFixed(4)}"`;
+    return `<path d="${path}" ${frac > 0.005 ? ds : ''} fill="${it.color}" data-tip="<b>${esc(it.label)}</b>${money0(it.value)} · ${pct(frac * 100)}" data-key="${esc(it.key || it.label)}"></path>`;
   }).join('');
   const empty = total ? '' : `<circle cx="${cx}" cy="${cy}" r="${(R + r) / 2}" fill="none" stroke="var(--surface-3)" stroke-width="${R - r}"/>`;
-  return `<div class="donut"><svg viewBox="0 0 200 200">${empty}${arcs}</svg><div class="c"><b>${centerValue}</b><span>${centerLabel}</span></div></div>`;
+  return `<div class="donut"><svg viewBox="0 0 200 200" data-lq="donut" data-cx="${cx}" data-cy="${cy}" data-r1="${R}" data-r0="${r}">${empty}${arcs}</svg><div class="c"><b>${centerValue}</b><span>${centerLabel}</span></div></div>`;
 }
 
 /* Líneas múltiples (misma unidad): series [{name,color,values[]}], labels[] */
@@ -44,12 +45,12 @@ function linesSVG(labels, series, opts = {}) {
     const d = s.values.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
     const area = opts.area ? `<path d="${d} L${x(n - 1)},${y(0)} L${x(0)},${y(0)} Z" fill="${s.color}" opacity=".08"/>` : '';
     const last = s.values.length - 1;
-    return `${area}<path d="${d}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/><circle cx="${x(last)}" cy="${y(s.values[last])}" r="4" fill="${s.color}" stroke="var(--surface)" stroke-width="2"/>`;
+    return `${area.replace('<path ', '<path class="ln" ')}<path class="ln" d="${d}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/><circle class="ln" cx="${x(last)}" cy="${y(s.values[last])}" r="4" fill="${s.color}" stroke="var(--surface)" stroke-width="2"/>`;
   }).join('');
   const hits = labels.map((l, i) => { const rows = series.map(s => `<i style='color:${s.color};font-style:normal'>●</i> ${esc(s.name)}: ${money0(s.values[i])}`).join('<br>'); return `<rect x="${x(i) - iw / (2 * Math.max(1, n - 1))}" y="${pt}" width="${iw / Math.max(1, n - 1)}" height="${ih}" fill="transparent" data-tip="<b>${esc(l)}</b>${rows}"/>`; }).join('');
-  const dots = series.map(s => s.values.map((v, i) => `<circle cx="${x(i)}" cy="${y(v)}" r="3" fill="${s.color}" pointer-events="none"/>`).join('')).join('');
+  const dots = series.map(s => s.values.map((v, i) => `<circle class="ln" cx="${x(i)}" cy="${y(v)}" r="3" fill="${s.color}" pointer-events="none"/>`).join('')).join('');
   const legend = series.length > 1 ? `<div class="leg2">${series.map(s => `<span><i style="--c:${s.color}"></i>${esc(s.name)}</span>`).join('')}</div>` : '';
-  return `<div class="chart"><svg viewBox="0 0 ${W} ${H}"><g class="grid">${grid}</g>${ylab}${xlab}${paths}${dots}${hits}</svg>${legend}</div>`;
+  return `<div class="chart"><svg viewBox="0 0 ${W} ${H}" data-lq="lines" data-base="${y(0)}"><g class="grid">${grid}</g>${ylab}${xlab}${paths}${dots}${hits}</svg>${legend}</div>`;
 }
 
 /* Barras agrupadas o apiladas: labels[], series [{name,color,values}] */
@@ -75,7 +76,7 @@ function barsSVG(labels, series, opts = {}) {
     }
   });
   const legend = series.length > 1 ? `<div class="leg2">${series.map(s => `<span><i class="sq" style="--c:${s.color}"></i>${esc(s.name)}</span>`).join('')}</div>` : '';
-  return `<div class="chart"><svg viewBox="0 0 ${W} ${H}"><g class="grid">${grid}</g>${ylab}${xlab}${bars}</svg>${legend}</div>`;
+  return `<div class="chart"><svg viewBox="0 0 ${W} ${H}" data-lq="bars"><g class="grid">${grid}</g>${ylab}${xlab}${bars}</svg>${legend}</div>`;
 }
 
 /* Flujo de ingreso: sankey simple de una fuente a varios destinos */
@@ -100,4 +101,21 @@ function flowSVG(total, parts) {
     yL += hl; yR += h + gap;
   });
   return `<div class="chart"><svg viewBox="0 0 ${W} ${H}">${out}</svg></div>`;
+}
+
+/* Medidor semicircular: v (0–1+) y una marca opcional (p. ej. cuánto va del mes) */
+function gaugeSVG(v, mark, big, small, color = 'var(--berry)') {
+  const cx = 110, cy = 104, R = 82; const L = Math.PI * R;
+  const pt = f => { const a = Math.PI * (1 - f); return [(cx + R * Math.cos(a)).toFixed(1), (cy - R * Math.sin(a)).toFixed(1)]; };
+  const d = `M${pt(0).join(',')} A${R},${R} 0 0 1 ${pt(1).join(',')}`;
+  const over = v > 1; const m = mark != null ? (() => { const a = Math.PI * (1 - Math.min(1, mark)); return `<line x1="${(cx + (R - 18) * Math.cos(a)).toFixed(1)}" y1="${(cy - (R - 18) * Math.sin(a)).toFixed(1)}" x2="${(cx + (R + 14) * Math.cos(a)).toFixed(1)}" y2="${(cy - (R + 14) * Math.sin(a)).toFixed(1)}" class="g-mark"/>`; })() : '';
+  return `<div class="gauge"><svg viewBox="0 0 220 122" data-lq="gauge" data-len="${L.toFixed(1)}" data-v="${Math.min(1.04, v).toFixed(4)}"><path d="${d}" class="g-track"/><path d="${d}" class="g-fill" style="stroke:${over ? 'var(--bad)' : color};stroke-dasharray:${(Math.min(1.04, v) * L).toFixed(1)} ${(L * 2).toFixed(1)}"/>${m}</svg><div class="g-c"><b class="num">${big}</b><span>${small}</span></div></div>`;
+}
+/* Barras horizontales: items [{label, value, max, color, sub}] — valor sobre su propio máximo */
+function hbarsHTML(items, fmt = money0) {
+  const top = Math.max(1, ...items.map(i => Math.max(i.max || 0, i.value)));
+  return `<div class="hb">${items.map(i => { const over = i.max && i.value > i.max; return `<div class="hb-row${over ? ' over' : ''}" style="--c:${i.color}" data-tip="<b>${esc(i.label)}</b>${fmt(i.value)}${i.max ? ` de ${fmt(i.max)}` : ''}">
+    <span class="hb-l">${esc(i.label)}</span>
+    <span class="hb-t">${i.max ? `<i class="hb-cap" style="width:${(i.max / top * 100).toFixed(1)}%"></i>` : ''}<i class="hb-fill" style="width:${(Math.min(i.value, top) / top * 100).toFixed(1)}%"></i></span>
+    <span class="hb-v num">${fmt(i.value)}${i.max ? `<small>/${fmt(i.max)}</small>` : ''}</span></div>`; }).join('')}</div>`;
 }

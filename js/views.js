@@ -438,7 +438,8 @@ function viewPresupuesto() {
     <button role="tab" data-btab="freelance" aria-selected="${tab === 'freelance'}" class="${tab === 'freelance' ? 'on' : ''}">${icon('briefcase')}<span>Freelance</span></button>
     <button role="tab" data-btab="tarjeta" aria-selected="${tab === 'tarjeta'}" class="${tab === 'tarjeta' ? 'on' : ''}">${icon('card')}<span class="lg">Con tarjeta</span><span class="sh">Tarjeta</span></button>
   </div>
-  ${tab === 'tarjeta' ? cardSvcHTML() : tab === 'freelance' ? freelanceHTML() : tab === 'quincena' ? (quincenasHTML(bs) || '<div class="card"><div class="empty"><h3>Aún no hay conceptos</h3><p>Agrega conceptos con monto en la pestaña Mensual y aquí se reparten por quincena.</p></div></div>') : `
+  ${tab === 'tarjeta' ? cardSvcHTML() : tab === 'freelance' ? freelanceHTML() : tab === 'quincena' ? (quincenaChartHTML(bs) + quincenasHTML(bs) || '<div class="card"><div class="empty"><h3>Aún no hay conceptos</h3><p>Agrega conceptos con monto en la pestaña Mensual y aquí se reparten por quincena.</p></div></div>') : `
+  ${budgetChartsHTML(bs)}
   <section class="g23">
     <div class="card">${bs.length ? budGrouped(bs).map(b => b.head ? `<div class="bud-g"><span>${esc(b.head)}</span><div class="bud-g-n"><b class="num">${money0(b.spent)}</b><small>de ${money0(b.total)}</small></div></div>` : `<div class="bud${b.over ? ' over' : ''}">
       <div class="h">${catIcon(b.cat)}<div class="nm"><b>${esc(b.cat.name)}</b><small>Gastado <em>${money0(b.spent)}</em> de ${money0(b.budget)}</small></div>

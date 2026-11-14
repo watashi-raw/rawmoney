@@ -6,7 +6,7 @@ ROOT = pathlib.Path(__file__).parent
 html = (ROOT / "index.html").read_text(encoding="utf-8")
 css = (ROOT / "css/app.css").read_text(encoding="utf-8")
 html = html.replace('<link rel="stylesheet" href="css/app.css">', "<style>\n" + css + "\n</style>")
-for name in ["config", "store", "calc", "charts", "logo", "views", "whatif", "forms", "plan", "sync", "cover", "mascot", "app"]:
+for name in ["config", "store", "calc", "charts", "liquid", "logo", "views", "whatif", "forms", "plan", "sync", "cover", "mascot", "pet", "app"]:
     js = (ROOT / f"js/{name}.js").read_text(encoding="utf-8")
     if name == "mascot":
         import base64

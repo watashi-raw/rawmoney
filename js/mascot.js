@@ -19,10 +19,11 @@ const Cat = (() => {
   const SAY_WAKE = { length: 1, get 0() { return pick(['mrr… meow?', 'meow…?', 'zzz… mew', `m${rep('r', 2, 4)}?`, 'nya…?']); } };
   const SAY_HUNT = { length: 1, get 0() { return pick(['MEOW!', 'NYA!', `M${rep('E', 3, 7)}OW!`, 'mrrrp!', 'm-e-o-w!']); } };
   const SAY_PLAY = { length: 1, get 0() { return pick([`m${rep('e', 4, 9)}ow!`, 'nya nya!', `me${rep('o', 4, 9)}w~`, 'MEOW MEOW']); } };
-  const MOVING = ['walk', 'run', 'play', 'hunt'];
+  const MOVING = ['walk', 'run', 'play', 'hunt', 'tobed', 'totoy'];
   let y = 0, vy = 0, vx = 0, baseTop = 0, grab = null, dragged = false, suppressClick = false, swayT = 0;
   let el, spr, bub, x = 0, targetX = 0, state = 'sleep', frame = 0, frameT = 0, stateT = 0, stateDur = 0, last = 0, raf = 0, bubT = 0;
   let scale = 3, facing = 'right', playLeft = 0, huntCool = 0, pounceCool = 0, hoverT = 0, hovering = false, awakeFor = 0;
+  let hatEl, dreamEl, floorB, floorF, petSig = '', toyAt = {}, bedX = null, toyTarget = null, settleT = 0, twitchT = 0, dreamT = 0, inBed = false;
   const mouse = { x: -1, y: -1, t: -1e9 };
   const rnd = (a, b) => a + Math.random() * (b - a);
   const pick = a => a[Math.floor(Math.random() * a.length)];
@@ -41,8 +42,9 @@ const Cat = (() => {
     if (el) return;
     el = document.createElement('button');
     el.type = 'button'; el.className = 'rm-cat'; el.setAttribute('aria-label', 'Gatito de Raw Money: tócalo');
-    el.innerHTML = '<span class="spr"></span><span class="bub" aria-live="polite"></span><span class="zz" aria-hidden="true"><i>z</i><i>z</i><i>z</i></span>';
-    spr = el.querySelector('.spr'); bub = el.querySelector('.bub');
+    el.innerHTML = '<span class="spr"><span class="hatbox"></span></span><span class="dream" aria-hidden="true"></span><span class="bub" aria-live="polite"></span><span class="zz" aria-hidden="true"><i>z</i><i>z</i><i>Z</i></span>';
+    spr = el.querySelector('.spr'); bub = el.querySelector('.bub'); hatEl = el.querySelector('.hatbox'); dreamEl = el.querySelector('.dream');
+    floorB = document.createElement('div'); floorB.className = 'rm-floor'; floorF = document.createElement('div'); floorF.className = 'rm-floor front';
     spr.style.backgroundImage = `url("${CAT_SPRITE}")`;
     el.addEventListener('click', () => { if (suppressClick) { suppressClick = false; return; } tap(); });
     // arrastrar con el cursor (o el dedo) y soltarlo: cae despacito
@@ -73,15 +75,16 @@ const Cat = (() => {
     el.addEventListener('pointercancel', release);
     el.addEventListener('mouseenter', () => { hovering = true; hoverT = 0; });
     el.addEventListener('mouseleave', () => { hovering = false; });
-    document.body.appendChild(el);
+    document.body.append(floorB, el, floorF);
     measure();
     x = rnd(...bounds()); place();
     set('sleep', rnd(8000, 16000));
-    addEventListener('resize', () => { measure(); x = clampX(x); targetX = clampX(targetX); place(); });
+    addEventListener('resize', () => { measure(); x = clampX(x); targetX = clampX(targetX); petSig = ''; refresh(); place(); });
+    refresh();
     document.addEventListener('mousemove', e => { mouse.x = e.clientX; mouse.y = e.clientY; mouse.t = performance.now(); }, { passive: true });
     document.addEventListener('visibilitychange', () => { if (!document.hidden) { last = 0; loop(); } });
     // ventanas para capturar datos: el gatito queda encima, pero sin tapar clics
-    new MutationObserver(() => el.classList.toggle('over', overlayOpen())).observe(document.body, { childList: true, subtree: true });
+    new MutationObserver(() => { const o = overlayOpen(); el.classList.toggle('over', o); floorB.classList.toggle('hide', o); floorF.classList.toggle('hide', o); if (o && inBed) { inBed = false; el.classList.remove('inbed'); } }).observe(document.body, { childList: true });
     loop();
   }
   function measure() { scale = innerWidth < 640 ? 2.25 : 3; el.style.setProperty('--cell', cell() + 'px'); }
@@ -97,11 +100,14 @@ const Cat = (() => {
     const row = state === 'held' || state === 'fall' ? ROW.down : MOVING.includes(state) ? (facing === 'right' ? ROW.right : ROW.left) : ROW[state] ?? ROW.sit;
     spr.style.backgroundPosition = `${-frame * cell()}px ${-row * cell()}px`;
     el.classList.toggle('sleeping', state === 'sleep');
+    const hat = (S.data && S.data.pet && S.data.pet.hat) || '';
+    const key = hat + row + ':' + frame + ':' + scale; if (hatEl._k !== key) { hatEl._k = key; hatEl.innerHTML = hat ? hatHTML(hat, scale, row, frame) : ''; }
   }
   function face() { if (Math.abs(targetX - x) > 2) facing = targetX > x ? 'right' : 'left'; }
   function set(s, dur = 0) {
     state = s; stateT = 0; stateDur = dur; frame = s === 'sit' ? 2 : 0; frameT = 0;
-    if (s === 'sleep') awakeFor = 0;
+    if (s === 'sleep') { awakeFor = 0; frame = 2; settleT = 900; twitchT = rnd(5000, 10000); dreamT = rnd(8000, 14000); inBed = bedX != null && Math.abs(x - bedX) < 6; el.classList.toggle('inbed', inBed); }
+    else if (inBed) { inBed = false; el.classList.remove('inbed'); }
     if (MOVING.includes(s)) face();
     draw();
   }
@@ -121,25 +127,34 @@ const Cat = (() => {
   }
 
   /* Qué hace después. Despierto pasa ~1–2 min explorando y jugando; luego una siesta corta. */
+  const hasBed = () => bedX != null;
+  const sleepDur = () => hasBed() ? rnd(40000, 90000) : rnd(15000, 35000);
+  function goSleep() { if (hasBed() && Math.abs(x - bedX) > 6) { targetX = bedX; say(pick(['mrr… zzz?', 'meow… (a la camita)', 'nya~ zz']), 1600); return set('tobed'); } set('sleep', sleepDur()); }
   function decide() {
-    const tired = awakeFor > rnd(60000, 120000);
+    const tired = awakeFor > (hasBed() ? rnd(25000, 50000) : rnd(60000, 120000));
     const r = Math.random();
-    if (tired && r < .7) return set('sleep', rnd(15000, 35000));
+    if (tired && r < (hasBed() ? .92 : .7)) return goSleep();
+    const toys = Object.keys(toyAt);
+    if (toys.length && !reduce() && r < .2) { toyTarget = pick(toys); targetX = clampX(toyAt[toyTarget].x - cell() / 2); return set('totoy'); }
     if (reduce()) return r < .5 ? set('sit', rnd(4000, 8000)) : set('groom', rnd(2500, 4000));
     if (r < .34) { targetX = rnd(...bounds()); return set('walk'); }                     // explora
     if (r < .56) { playLeft = 2 + Math.floor(Math.random() * 3); targetX = rnd(...bounds()); say(pick(SAY_PLAY), 1500); return set('play'); } // carreritas
     if (r < .7) return set('look', rnd(2000, 3500));                                     // mira hacia arriba
     if (r < .84) return set('groom', rnd(2500, 4000));
-    if (r < .95) return set('sit', rnd(2500, 5000));
-    return set('sleep', rnd(12000, 25000));
+    if (r < (hasBed() ? .88 : .95)) return set('sit', rnd(2500, 5000));
+    return goSleep();
   }
   function arrive() {
     if (state === 'play') { hop(1); if (--playLeft > 0) { targetX = rnd(...bounds()); set('play'); state = 'play'; return; } return set('sit', rnd(2000, 3500)); }
     if (state === 'run') { hop(2); burst(['$', '$', '✦'], 5); return set('sit', rnd(4000, 6000)); }
     if (state === 'walk') return Math.random() < .5 ? set('look', rnd(1500, 3000)) : set('sit', rnd(2000, 4000));
+    if (state === 'tobed') { x = bedX; place(); return set('sleep', sleepDur()); }
+    if (state === 'totoy') { const t = toyAt[toyTarget]; if (t) { hop(2); Liquid.boing(t.el, 1.3); say(pick(SAY_PLAY), 1500); burst(['♥', '✦'], 3);
+      if (toyTarget === 'pelota' || toyTarget === 'estambre') { const [a, b] = bounds(); const nx = Math.min(b + cell() * .6, Math.max(a + 10, t.x + (facing === 'right' ? 1 : -1) * rnd(50, 110))); t.x = nx; t.el.style.left = `${nx - t.w / 2}px`; } }
+      return set('sit', rnd(2500, 4000)); }
   }
   function next() {
-    if (state === 'sleep') return set('stretch', 1100);
+    if (state === 'sleep') { if (hasBed() && Math.random() < .35) return set('sleep', rnd(20000, 40000)); return set('stretch', 1100); }
     if (state === 'stretch') return decide();
     if (state === 'hunt') { huntCool = rnd(6000, 14000); return set('sit', rnd(2000, 3500)); }
     return decide();
@@ -161,7 +176,7 @@ const Cat = (() => {
     el.classList.toggle('watch', !low);                              // si el cursor está arriba, lo mira
   }
 
-  const SPEED = { sleep: 700, stretch: 260, walk: 150, run: 85, play: 80, hunt: 95, sit: 900, groom: 230, look: 1000 };
+  const SPEED = { sleep: 700, stretch: 260, walk: 150, run: 85, play: 80, hunt: 95, sit: 900, groom: 230, look: 1000, tobed: 170, totoy: 110 };
   function tick(dt) {
     const now = performance.now();
     if (state === 'held') { spr.style.rotate = reduce() ? '' : `${Math.max(-28, Math.min(28, -vx * .03))}deg`; vx *= .85; frameT += dt; if (frameT > 160) { frameT = 0; frame = (frame + 1) % 4; draw(); } return; }
@@ -180,17 +195,18 @@ const Cat = (() => {
     const still = state === 'hunt' && el.classList.contains('watch');
     if (frameT >= fs) {
       frameT = 0;
-      if (state === 'sleep') frame = frame ? 0 : 1;
+      if (state === 'sleep') { /* dormido se queda quieto: lo controla sleepTick */ }
       else if (state === 'sit') frame = frame === 2 ? 3 : 2;
       else if (state === 'look') frame = 0;
       else if (state === 'stretch') frame = Math.min(3, frame + 1);
       else if (!still) frame = (frame + 1) % 4;
       draw();
     }
+    if (state === 'sleep') sleepTick(dt);
     if (state === 'hunt') { if (still) { spr.style.backgroundPosition = `0px ${-ROW.look * cell()}px`; } huntTick(dt, now); return; }
     el.classList.remove('watch');
-    if (state === 'walk' || state === 'run' || state === 'play') {
-      const v = (state === 'run' ? 200 : state === 'play' ? 230 : 48) * dt / 1000; const d = targetX - x;
+    if (state === 'walk' || state === 'run' || state === 'play' || state === 'tobed' || state === 'totoy') {
+      const v = (state === 'run' ? 200 : state === 'play' ? 230 : state === 'totoy' ? 120 : 48) * dt / 1000; const d = targetX - x;
       if (Math.abs(d) <= v) { x = targetX; place(); arrive(); } else { x += Math.sign(d) * v; place(); }
     } else if (stateDur && stateT >= stateDur) next();
   }
@@ -200,6 +216,43 @@ const Cat = (() => {
     raf = requestAnimationFrame(step);
   }
 
+  /* Dormir: primero se acomoda (echado), luego se hace bolita y respira; a veces mueve una oreja o sueña */
+  function sleepTick(dt) {
+    if (settleT > 0) { settleT -= dt; if (settleT <= 0) { frame = 0; draw(); } return; }
+    twitchT -= dt; dreamT -= dt;
+    if (twitchT <= 0) { frame = 1; draw(); setTimeout(() => { if (state === 'sleep' && settleT <= 0) { frame = 0; draw(); } }, 260); twitchT = rnd(6000, 12000); }
+    if (dreamT <= 0 && !reduce()) { dream(); dreamT = rnd(12000, 22000); }
+  }
+  function dream() {
+    const toys = ((S.data && S.data.pet && S.data.pet.toys) || []).filter(t => PIX[t]); const id = toys.length ? pick(toys) : 'pescado';
+    dreamEl.innerHTML = `<i></i><i></i><b>${pixSVG(PIX[id], 2)}</b>`; el.classList.remove('dreaming'); void el.offsetWidth; el.classList.add('dreaming');
+    setTimeout(() => el.classList.remove('dreaming'), 3600);
+  }
+  /* Juguetes y camita en el piso, según lo elegido en Mi gato */
+  function refresh() {
+    if (!el) return; const p = (S.data && S.data.pet) || {}; const toys = (p.toys || []).filter(t => PIX[t]);
+    const sig = [p.bed ? p.bedColor : '', toys.join(','), p.hat || '', scale, innerWidth].join('|'); if (sig === petSig) return; petSig = sig;
+    floorB.innerHTML = ''; floorF.innerHTML = ''; toyAt = {}; hatEl._k = ''; draw();
+    const [a, b] = bounds(); const span = b - a; const ps = scale * .8;
+    if (p.bed) {
+      bedX = Math.round(a + span * .84); const d = bedDef(p.bedColor); const w = 30 * scale; const left = bedX + (cell() - w) / 2 + scale * 1.5;
+      floorB.insertAdjacentHTML('beforeend', `<span class="bed" style="left:${left}px">${pixSVG(d.back, scale)}</span>`);
+      floorF.insertAdjacentHTML('beforeend', `<span class="bed" style="left:${left}px">${pixSVG(d.front, scale)}</span>`);
+    } else { bedX = null; if (inBed) { inBed = false; el.classList.remove('inbed'); } }
+    toys.forEach((t, i) => {
+      const w = pixW(PIX[t]) * ps; const cx = a + cell() / 2 + span * (.06 + i * (.62 / Math.max(1, toys.length)));
+      const s = document.createElement('button'); s.type = 'button'; s.className = 'toy'; s.setAttribute('aria-label', `${PIX[t].name}: que juegue`); s.style.left = `${cx - w / 2}px`; s.innerHTML = pixSVG(PIX[t], ps);
+      s.addEventListener('click', () => { Liquid.boing(s, 1.4); playWith(t); });
+      floorB.appendChild(s); toyAt[t] = { el: s, x: cx, w };
+    });
+  }
+  function playWith(t) {
+    if (!el || state === 'held' || state === 'fall') return; const o = toyAt[t]; if (!o) { say(meow()); return; }
+    if (state === 'sleep') say(pick(SAY_WAKE));
+    toyTarget = t; targetX = clampX(o.x - cell() / 2); set('totoy');
+  }
+  function call() { if (!el || state === 'held' || state === 'fall') return; targetX = clampX(innerWidth / 2 - cell() / 2); say(pick(SAY_PLAY), 1600); hop(1); set('run'); }
+  function nap() { if (!el || state === 'held' || state === 'fall') return; goSleep(); }
   function tap() {
     if (state === 'held' || state === 'fall') return;
     if (state === 'sleep') { say(pick(SAY_WAKE)); burst(['!', '?'], 2); set('stretch', 1100); return; }
@@ -214,8 +267,8 @@ const Cat = (() => {
     if (reduce()) return set('sit', 4000);
     set('run');
   }
-  function sync(locked) { if (!el) return; el.hidden = !!locked; if (!locked && !document.hidden) { last = 0; loop(); } }
-  return { mount, income, sync, tap };
+  function sync(locked) { if (!el) return; el.hidden = !!locked; floorB.hidden = floorF.hidden = !!locked; if (!locked) refresh(); if (!locked && !document.hidden) { last = 0; loop(); } }
+  return { mount, income, sync, tap, refresh, playWith, call, nap, say: (t, ms) => el && say(t, ms) };
 })();
 
 // ingresos registrados → el gatito celebra

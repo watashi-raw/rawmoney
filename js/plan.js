@@ -111,6 +111,7 @@ function freelanceHTML() {
       <div class="fl-stack" aria-label="Cómo se dividió">${parts.map(p => p[5] ? `<i style="flex:${p[5]};background:${col(p[4])}" title="${p[1]} ${money0(p[5])}"></i>` : '').join('')}</div>
       <div class="fl-legend">${parts.map(p => `<span><i style="background:${col(p[4])}"></i>${p[1]} <b>${money0(p[5])}</b> <em>${tot.in ? pct(p[5] / tot.in * 100) : '0%'}</em></span>`).join('')}</div>
     </div>
+    ${freelanceChartsHTML(D)}
     <h3 class="qz-h3">${icon('pie')}Cómo se dividió y cómo lo has usado</h3>
     <div class="fl-parts">${parts.map(([k, t, sub, ic, c, asg, u, verb, leftL, overL]) => { const left = asg - u, over = left < 0; const p = asg ? Math.min(100, u / asg * 100) : 0;
       return `<div class="fl-part${over && k !== 'save' ? ' over' : ''}" style="--fc:${col(c)}"><div class="fl-part-h"><span class="fl-part-ic">${icon(ic)}</span><div><b>${t}</b><small>${sub}</small></div></div>
@@ -205,8 +206,8 @@ const csPaid = (ym = S.month) => { const P = S.data.cardServicesPaid || (S.data.
 function cardSvcHTML() {
   const ym = S.month; const L = csList(); const P = csPaid(ym); const pays = qPayOpts();
   const addBtn = `<button class="btn primary" data-cs-add>${icon('plus')}<span>Agregar servicio</span></button>`;
-  const intro = `<div class="card cs-intro"><div class="cs-ic">${icon('card')}</div><div><h2>Servicios pagados con tarjeta</h2><p>Para lo que cargas a una tarjeta con dinero que <b>ya pagaste</b> (por ejemplo, servicios dentro de tu pago de Vexi). Marcarlos como pagados <b>no crea movimientos</b>: no cambia lo que te queda, ni el presupuesto, ni la deuda de la tarjeta.</p></div>${L.length ? addBtn : ''}</div>`;
-  if (!L.length) return `<section class="cs">${intro}<div class="card"><div class="empty"><h3>Aún no tienes servicios con tarjeta</h3><p>Agrega, por ejemplo, los dos servicios de ${money0(199)} y ${money0(99)} que pagas con tu Vexi.</p>${addBtn}</div></div></section>`;
+  const intro = `<div class="cs-bar">${addBtn}<span class="cs-hint" title="Marcarlos como pagados no crea movimientos: no cambia lo que te queda, ni el presupuesto, ni la deuda de la tarjeta.">${icon('check')}Cubiertos: no afectan tus finanzas</span></div>`;
+  if (!L.length) return `<section class="cs"><div class="card"><div class="empty"><h3>Servicios pagados con tarjeta</h3><p>Lo que cargas a una tarjeta con dinero que ya pagaste (como los servicios de tu Vexi). Marcarlos como pagados no mueve tus finanzas.</p>${addBtn}</div></div></section>`;
   const total = sum(L, s => s.amount), paid = L.filter(s => P[s.id]), affect = L.filter(s => s.covered === false);
   const groups = [...new Set(L.map(s => s.cardId || ''))].map(id => ({ id, opt: pays.find(p => p.id === id), items: L.filter(s => (s.cardId || '') === id).sort((a, b) => (a.day || 99) - (b.day || 99)) }));
   return `<section class="cs">${intro}
@@ -215,6 +216,7 @@ function cardSvcHTML() {
       <div class="cs-tile ok"><span>Pagados en ${MESES[+ym.slice(5) - 1]}</span><b class="num">${paid.length} de ${L.length}</b><small>${money2(sum(paid, s => s.amount))}</small></div>
       <div class="cs-tile"><span>Afectan tus finanzas</span><b class="num">${money2(sum(affect, s => s.amount))}</b><small>${affect.length ? `${affect.length} se registra${affect.length === 1 ? '' : 'n'} como gasto` : 'Ninguno · todo cubierto'}</small></div>
     </div>
+    ${cardSvcChartHTML()}
     ${groups.map(g => { const c = g.opt ? g.opt.color : col('#8D8481'); const gp = g.items.filter(s => P[s.id]).length;
       return `<div class="card cs-g" style="--cc:${c}"><div class="cs-gh"><span class="cs-chip">${icon('card')}</span><div><b>${g.opt ? esc(g.opt.name) : 'Sin tarjeta'}</b><small>${g.opt ? g.opt.kind + ' · ' : ''}${gp} de ${g.items.length} pagado${g.items.length === 1 ? '' : 's'}</small></div><b class="num">${money2(sum(g.items, s => s.amount))}<small>/mes</small></b></div>
         ${g.items.map(s => { const on = !!P[s.id]; return `<div class="cs-row${on ? ' done' : ''}">
@@ -271,4 +273,57 @@ function bindCardSvc(root) {
       ]);
     }
   }));
+}
+
+/* ---------- Más gráficas para Presupuesto ---------- */
+const GROUP_COLORS = { casa: '#3884B0', diario: '#2D8F73', metas: '#9B669A', deudas: '#B8505F', '': '#8D8481' };
+const miniLegend = items => `<div class="legend sm">${items.map(i => `<div class="l" style="--cat:${i.color}"><i></i><span>${esc(i.label)}</span><b class="num">${money0(i.value)}</b><em>${i.pct}</em></div>`).join('')}</div>`;
+function chartCard(title, sub, body, cls = '') { return `<div class="card chartc ${cls}"><div class="ch"><h2>${title}</h2>${sub ? `<span class="ch-sub">${sub}</span>` : ''}</div>${body}</div>`; }
+function budgetChartsHTML(bs) {
+  if (!bs.length) return '';
+  const ym = S.month; const tot = sum(bs, b => b.budget), sp = sum(bs, b => b.spent);
+  const G = [...PLAN_GROUPS, ['', 'Otros']].map(([g, l]) => { const its = bs.filter(b => (b.cat.group || '') === g || (g === '' && !PLAN_GROUPS.some(x => x[0] === b.cat.group))); return { label: l, value: sum(its, b => b.budget), color: col(GROUP_COLORS[g]), key: g || 'otros' }; }).filter(x => x.value > 0);
+  G.forEach(x => { x.pct = pct(x.value / tot * 100); });
+  const cur = ym === thisMonth(); const dayPct = cur ? Number(todayISO().slice(8)) / daysIn(ym) : isPast(ym) ? 1 : 0;
+  const top = [...bs].sort((a, b) => b.budget - a.budget).slice(0, 8).map(b => ({ label: b.cat.name, value: b.spent, max: b.budget, color: col(b.cat.color) }));
+  return `<section class="bud-charts">
+    ${chartCard('¿Cómo se reparte?', `${money0(tot)} al mes`, `<div class="donutwrap sm">${donutSVG(G, 'presupuesto', money0(tot))}${miniLegend(G)}</div>`)}
+    ${chartCard('¿Cuánto llevo?', cur ? `Va el ${pct(dayPct * 100)} del mes` : '', `${gaugeSVG(tot ? sp / tot : 0, dayPct || null, pct(tot ? sp / tot * 100 : 0), `${money0(sp)} de ${money0(tot)}`)}<p class="g-note">${!tot ? '' : sp > tot ? `Te pasaste por <b>${money0(sp - tot)}</b>.` : cur && sp / tot > dayPct + .08 ? 'Vas gastando más rápido de lo que avanza el mes.' : `Te quedan <b>${money0(tot - sp)}</b> del presupuesto.`}</p>`)}
+    ${chartCard('Presupuesto vs. gastado', 'tus conceptos más grandes', hbarsHTML(top), 'wide')}
+  </section>`;
+}
+function quincenaChartHTML(bs) {
+  const rows = qRows(bs); if (!rows.length) return '';
+  const [i1, i2] = qIncome();
+  const fx = k => sum(rows.filter(r => r.fixed), r => r[k]), fl = k => sum(rows.filter(r => !r.fixed), r => r[k]);
+  const v = [['a', i1], ['b', i2]].map(([k, inc]) => ({ f: fx(k), a: fl(k), l: Math.max(0, inc - fx(k) - fl(k)) }));
+  const chart = barsSVG(['1ª quincena', '2ª quincena'], [
+    { name: 'Fijos', color: col('#B8505F'), values: v.map(x => x.f) },
+    { name: 'Ajustables', color: col('#3884B0'), values: v.map(x => x.a) },
+    { name: 'Te queda libre', color: col('#2D8F73'), values: v.map(x => x.l) }], { stacked: true, h: 200 });
+  const pays = qPayOpts(); const byPay = pays.map(p => ({ label: p.name, value: sum(rows.filter(r => r.pay === p.id), r => r.total), color: p.color, key: p.id })).filter(x => x.value > 0);
+  const tot = sum(byPay, x => x.value); byPay.forEach(x => { x.pct = pct(x.value / tot * 100); });
+  return `<section class="bud-charts two">
+    ${chartCard('Las dos quincenas', 'fijos, ajustables y lo libre', chart)}
+    ${byPay.length ? chartCard('¿Con qué pagas?', 'por tarjeta o cuenta', `<div class="donutwrap sm">${donutSVG(byPay, 'al mes', money0(tot))}${miniLegend(byPay)}</div>`) : chartCard('¿Con qué pagas?', '', '<p class="g-note">Asigna una tarjeta o cuenta a cada concepto y aquí verás cuánto lleva cada una.</p>')}
+  </section>`;
+}
+function freelanceChartsHTML(D) {
+  const sp = flCats()[0].split; const { tot, used } = D; if (!tot.in) return '';
+  const parts = [['Ahorro', '#2D8F73', tot.save, used.save], ['Transporte', '#3884B0', tot.trans, used.trans], ['Para ti', '#9B669A', tot.mine, used.mine]];
+  const it = parts.map(([l, c, v]) => ({ label: l, value: v, color: col(c), pct: pct(v / tot.in * 100) }));
+  return `<section class="bud-charts two">
+    ${chartCard('Cómo se dividió', `regla ${sp.savePct}% / ${money0(sp.transport)} / resto`, `<div class="donutwrap sm">${donutSVG(it, 'freelance', money0(tot.in))}${miniLegend(it)}</div>`)}
+    ${chartCard('Asignado vs. usado', '', barsSVG(parts.map(p => p[0]), [{ name: 'Asignado', color: col('#C9B8C8'), values: parts.map(p => p[2]) }, { name: 'Usado', color: col('#9B669A'), values: parts.map(p => p[3]) }], { h: 200 }))}
+  </section>`;
+}
+function cardSvcChartHTML() {
+  const L = csList(); if (!L.length) return '';
+  const pays = qPayOpts(); const tot = sum(L, s => s.amount);
+  const it = [...new Set(L.map(s => s.cardId || ''))].map(id => { const p = pays.find(x => x.id === id); const v = sum(L.filter(s => (s.cardId || '') === id), s => s.amount); return { label: p ? p.name : 'Sin tarjeta', value: v, color: p ? p.color : col('#8D8481'), key: id || 'none', pct: pct(v / tot * 100) }; });
+  const paid = sum(L.filter(s => csPaid()[s.id]), s => s.amount);
+  return `<section class="bud-charts two">
+    ${chartCard('Por tarjeta', '', `<div class="donutwrap sm">${donutSVG(it, 'al mes', money0(tot))}${miniLegend(it)}</div>`)}
+    ${chartCard('Pagado este mes', '', `${gaugeSVG(tot ? paid / tot : 0, null, pct(tot ? paid / tot * 100 : 0), `${money0(paid)} de ${money0(tot)}`, 'var(--good)')}`)}
+  </section>`;
 }
