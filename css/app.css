@@ -913,3 +913,30 @@ body{background-color:var(--bg);background-image:var(--grain);background-size:18
 .plan-tbl tfoot td{font-weight:800;font-size:14px;border-top:2px solid var(--ink);border-bottom:0;padding-top:8px}
 .plan-note{display:flex;gap:10px;padding:12px;border-radius:14px;background:var(--surface-2);border:1.5px dashed var(--line-strong);font-size:13px;line-height:1.5}
 .plan-note .i{flex:none;width:20px;height:20px;color:var(--berry)} .plan-note b:first-child{display:block}
+
+/* Presupuesto por quincena */
+.qz{margin-top:18px}
+.qz .ch{display:flex;gap:12px;align-items:flex-start;justify-content:space-between}
+.qz-sub{margin:4px 0 0;font-size:13px;color:var(--ink-3);line-height:1.5;max-width:56ch}
+.qz-tbl{margin-top:12px;display:flex;flex-direction:column}
+.qz-r{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(70px,.8fr) minmax(92px,1fr) minmax(92px,1fr);gap:8px;align-items:center;padding:6px 0;border-bottom:1px dashed var(--line);font-size:14px}
+.qz-r .n{text-align:right}
+.qz-h{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);font-weight:700;border-bottom:1.5px solid var(--line-strong)}
+.qz-nm{display:flex;align-items:center;gap:8px;font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.qz-nm i{flex:none;width:10px;height:10px;border-radius:50%;background:var(--cat)}
+.qz-r .num{font-variant-numeric:tabular-nums;color:var(--ink-2)}
+.qn{width:100%;text-align:right;padding:7px 9px;font-size:14px;font-variant-numeric:tabular-nums}
+.qz-t{border-top:2px solid var(--ink);border-bottom:0;font-weight:800;margin-top:4px;padding-top:10px}
+.qz-t .num{color:var(--ink);font-size:16px}
+.qz-in{font-weight:700;border-bottom:0}
+.qz-st{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.qz-b{display:flex;gap:10px;align-items:center;padding:12px 14px;border-radius:14px;border:1.5px solid var(--edge);box-shadow:3px 3px 0 var(--hard);transition:background .25s}
+.qz-b .i{flex:none;width:22px;height:22px}
+.qz-b b{display:block;font-size:14px} .qz-b span{font-size:13px;font-weight:600}
+.qz-b.ok{background:var(--good-soft);color:var(--good)} .qz-b.no{background:var(--bad-soft);color:var(--bad)}
+@media (max-width:640px){
+  .qz-r{grid-template-columns:minmax(0,1fr) 84px 84px;font-size:13px}
+  .qz-r > :nth-child(2){display:none}
+  .qz-st{grid-template-columns:1fr}
+  .qz .ch{flex-direction:column}
+}

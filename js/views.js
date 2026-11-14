@@ -206,6 +206,60 @@ function budGrouped(bs) {
   const G = [...PLAN_GROUPS, ['', 'Otros conceptos']];
   return G.flatMap(([g, gl]) => { const its = bs.filter(b => (b.cat.group || '') === g || (g === '' && !PLAN_GROUPS.some(x => x[0] === b.cat.group))); return its.length ? [{ head: gl, total: sum(its, b => b.budget), spent: sum(its, b => b.spent) }, ...its] : []; });
 }
+/* ---------- Por quincena: reparte cada concepto en dos partes (editable) y revisa si cuadra ---------- */
+const QK_SAVE = '__ahorro';
+function qState() { const q = S.data.quincenas || (S.data.quincenas = { income: null, q1: {} }); if (!q.q1) q.q1 = {}; return q; }
+function qIncome() { const q = qState(); const half = Math.round(PLAN_INCOME / 2); return q.income && q.income.length === 2 ? q.income : [half, PLAN_INCOME - half]; }
+function qRows(bs) {
+  const q = qState(); const rows = budGrouped(bs).filter(b => !b.head).map(b => ({ id: b.cat.id, name: b.cat.name, color: col(b.cat.color), total: b.budget }));
+  if (S.data.savingsGoal) rows.push({ id: QK_SAVE, name: 'Ahorro (meta)', color: 'var(--berry)', total: S.data.savingsGoal });
+  return rows.map(r => { const a = Math.min(r.total, Math.max(0, q.q1[r.id] ?? Math.round(r.total / 2))); return { ...r, a, b: r.total - a }; });
+}
+function quincenasHTML(bs) {
+  const rows = qRows(bs); if (!rows.length) return '';
+  const [i1, i2] = qIncome(); const last = new Date(+S.month.slice(0, 4), +S.month.slice(5, 7), 0).getDate();
+  const inp = (id, k, v, max) => `<input class="inp qn" type="number" inputmode="decimal" min="0" max="${max}" step="any" data-q="${k}" data-id="${id}" value="${v}" aria-label="${k === 'a' ? 'Primera' : 'Segunda'} quincena">`;
+  return `<section class="card qz" id="qz">
+    <div class="ch"><div><h2>Por quincena</h2><p class="qz-sub">Cada concepto se parte en dos partes iguales. Cambia cualquier monto y la otra quincena se ajusta sola para que el total del mes se mantenga.</p></div><button class="btn quiet sm" data-qreset>${icon('repeat')}Partes iguales</button></div>
+    <div class="qz-tbl" role="table">
+      <div class="qz-r qz-h" role="row"><span>Concepto</span><span class="n">Mes</span><span class="n">1ª · 1–15</span><span class="n">2ª · 16–${last}</span></div>
+      ${rows.map(r => `<div class="qz-r" role="row" style="--cat:${r.color}"><span class="qz-nm"><i></i>${esc(r.name)}</span><span class="n num">${money0(r.total)}</span><span class="n">${inp(r.id, 'a', r.a, r.total)}</span><span class="n">${inp(r.id, 'b', r.b, r.total)}</span></div>`).join('')}
+      <div class="qz-r qz-t" role="row"><span>Lo que necesitas</span><span class="n num" data-qt="m"></span><span class="n num" data-qt="a"></span><span class="n num" data-qt="b"></span></div>
+      <div class="qz-r qz-in" role="row"><span>Lo que entra</span><span class="n num" data-qt="im"></span><span class="n"><input class="inp qn" type="number" inputmode="decimal" min="0" step="any" data-qi="0" value="${i1}" aria-label="Ingreso primera quincena"></span><span class="n"><input class="inp qn" type="number" inputmode="decimal" min="0" step="any" data-qi="1" value="${i2}" aria-label="Ingreso segunda quincena"></span></div>
+    </div>
+    <div class="qz-st"><div class="qz-b" data-qs="a"></div><div class="qz-b" data-qs="b"></div></div>
+  </section>`;
+}
+function bindQuincenas(root) {
+  const box = root.querySelector('#qz'); if (!box) return;
+  const q = qState();
+  const num = el => Math.max(0, parseFloat(el.value) || 0);
+  const paint = () => {
+    let A = 0, B = 0, M = 0;
+    box.querySelectorAll('[data-q=a]').forEach(a => { const b = box.querySelector(`[data-q=b][data-id="${a.dataset.id}"]`); A += num(a); B += num(b); M += +a.max; });
+    const I = [...box.querySelectorAll('[data-qi]')].map(num);
+    box.querySelector('[data-qt=m]').textContent = money0(M); box.querySelector('[data-qt=a]').textContent = money0(A); box.querySelector('[data-qt=b]').textContent = money0(B);
+    box.querySelector('[data-qt=im]').textContent = money0(I[0] + I[1]);
+    [['a', A, I[0], '1ª quincena'], ['b', B, I[1], '2ª quincena']].forEach(([k, need, inc, lbl]) => {
+      const d = inc - need, ok = d >= 0, el = box.querySelector(`[data-qs=${k}]`);
+      el.className = `qz-b ${ok ? 'ok' : 'no'}`;
+      el.innerHTML = `${icon(ok ? 'check' : 'alert')}<div><b>${lbl}: ${ok ? 'cuadra' : 'no cuadra'}</b><span>${ok ? (d ? `Te sobran ${money0(d)}` : 'Exacto, sin sobrante') : `Faltan ${money0(-d)}`}</span></div>`;
+    });
+  };
+  box.addEventListener('input', e => {
+    const el = e.target;
+    if (el.dataset.q) {
+      const max = +el.max, v = Math.min(max, num(el)); const other = box.querySelector(`[data-q=${el.dataset.q === 'a' ? 'b' : 'a'}][data-id="${el.dataset.id}"]`);
+      other.value = Math.round((max - v) * 100) / 100;
+      q.q1[el.dataset.id] = el.dataset.q === 'a' ? v : max - v;
+    }
+    if (el.dataset.qi) q.income = [...box.querySelectorAll('[data-qi]')].map(num);
+    paint();
+  });
+  box.addEventListener('change', e => { if (e.target.dataset.q) { const max = +e.target.max; if (num(e.target) > max) { e.target.value = max; e.target.dispatchEvent(new Event('input', { bubbles: true })); } } saveData(); });
+  box.querySelector('[data-qreset]').addEventListener('click', () => { q.q1 = {}; saveData(); render(); toast('Repartido en partes iguales'); });
+  paint();
+}
 function viewPresupuesto() {
   const ym = S.month; const bs = budgetStatus(ym); const s = monthSummary(ym);
   const totalB = sum(bs, b => b.budget), totalS = sum(bs, b => b.spent);
@@ -221,7 +275,8 @@ function viewPresupuesto() {
       <div class="stat"><div class="lb">Gastado en categorías con presupuesto</div><div class="v num">${money0(totalS)}</div><div class="s">${totalB ? (totalS > totalB ? `Excedido por ${money0(totalS - totalB)}` : `Quedan ${money0(totalB - totalS)}`) : ''}</div></div>
       ${without.length ? `<div><div class="eyebrow" style="margin-bottom:8px">Sin presupuesto</div><div class="chips">${without.map(c => `<button class="chip" data-budget="${c.id}">${esc(c.name)}${s.byCat[c.id] ? ` · ${money0(s.byCat[c.id])}` : ''}</button>`).join('')}</div></div>` : ''}
     </div>
-  </section>`;
+  </section>
+  ${quincenasHTML(bs)}`;
 }
 
 /* ---------- CALENDARIO ---------- */
@@ -336,8 +391,8 @@ const VIEWS = {
   deudas: { title: 'Deudas', icon: 'bank', fn: viewDeudas },
   recurrentes: { title: 'Recurrentes', icon: 'repeat', fn: viewRecurrentes },
   calendario: { title: 'Calendario', icon: 'cal', fn: viewCalendario },
-  presupuesto: { title: 'Presupuesto', icon: 'target', fn: viewPresupuesto },
+  presupuesto: { title: 'Presupuesto', icon: 'target', fn: viewPresupuesto, bind: bindQuincenas },
   categorias: { title: 'Categorías', icon: 'grid', fn: viewCategorias },
   ajustes: { title: 'Cuentas y ajustes', icon: 'tools', fn: viewAjustes, bind: bindAjustes },
 };
-const NAV_GROUPS = [['Mi mes', ['inicio', 'movimientos', 'gastos', 'resumen', 'historial']], ['Lo que debo', ['tarjetas', 'deudas', 'recurrentes', 'calendario']], ['Mis reglas', ['presupuesto', 'categorias', 'ajustes']]];
+const NAV_GROUPS = [['Mi mes', ['inicio', 'presupuesto', 'movimientos', 'gastos', 'resumen', 'historial']], ['Lo que debo', ['tarjetas', 'deudas', 'recurrentes', 'calendario']], ['Mis reglas', ['categorias', 'ajustes']]];
