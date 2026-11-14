@@ -1013,3 +1013,31 @@ body{background-color:var(--bg);background-image:var(--grain);background-size:18
 }
 .qz .qn::-webkit-inner-spin-button,.qz .qn::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
 .qz .qn{-moz-appearance:textfield;appearance:textfield}
+
+/* Quincena: fijos vs ajustables */
+.qz-sec{--sc:#587CB7;margin-top:14px;padding:12px;border-radius:16px;border:1.5px solid color-mix(in srgb,var(--sc) 40%,transparent);background:color-mix(in srgb,var(--sc) 7%,transparent)}
+.qz-sec.flex{--sc:#A86C3C}
+.qz-sec-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.qz-sec-h > div:nth-child(2){flex:1;min-width:150px}
+.qz-sec-h b{display:block;font-size:16px;color:var(--ink)} .qz-sec-h small{font-size:12px;font-weight:600;color:var(--ink-3)}
+.qz-sec-ic{flex:none;width:36px;height:36px;border-radius:12px;display:grid;place-items:center;background:var(--sc);color:#fff;box-shadow:2px 2px 0 var(--hard)}
+.qz-sec-ic .i{width:19px;height:19px}
+.qz-sec-t{display:flex;gap:6px}
+.qz-sec-t span{display:flex;flex-direction:column;align-items:flex-end;padding:5px 10px;border-radius:10px;background:var(--surface);border:1.5px solid var(--line)}
+.qz-sec-t em{font-style:normal;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-3)}
+.qz-sec-t b{font-size:14px;font-variant-numeric:tabular-nums}
+.qz-sec-t .t1 em{color:var(--q1)} .qz-sec-t .t2 em{color:var(--q2)}
+.qz-sec .qz-list{margin-top:10px}
+.qz-none{display:none;padding:14px;border:1.5px dashed var(--line-strong);border-radius:12px;font-size:13px;color:var(--ink-3);text-align:center}
+.qz-sec.empty .qz-none{display:block}
+.qz-kind{margin-left:auto;flex:none;display:inline-flex;align-items:center;gap:5px;border:1.5px solid color-mix(in srgb,var(--sc) 55%,transparent);background:color-mix(in srgb,var(--sc) 14%,var(--surface));color:var(--ink);font:700 12px var(--font);padding:5px 10px;border-radius:99px;cursor:pointer;transition:transform .12s var(--press),background .2s}
+.qz-kind .i{width:14px;height:14px;color:var(--sc)}
+.qz-kind:hover{background:color-mix(in srgb,var(--sc) 24%,var(--surface))} .qz-kind:active{transform:scale(.94)}
+.qz-row.moved{animation:fadeUp .35s ease both}
+@media (max-width:640px){
+  .qz-sec{padding:10px 8px}
+  .qz-sec-t{width:100%} .qz-sec-t span{flex:1;align-items:center}
+  .qz-kind{padding:6px 10px}
+}
+@media (max-width:640px){.qz-f .lg{display:none}}
+@media (max-width:640px){.qz-name b{white-space:normal;overflow:visible;line-height:1.2;font-size:14.5px}.qz-kind{font-size:11.5px;padding:5px 8px;gap:4px}.qz-kind .i{width:13px;height:13px}}

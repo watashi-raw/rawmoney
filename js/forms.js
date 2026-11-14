@@ -341,8 +341,8 @@ function formBudget(catId) {
   const c = catId ? byId(S.data.categories, catId) : null;
   const cur = c ? S.data.budgets[c.id] : null;
   const body = c
-    ? `${F.text('catName', 'Concepto', c.name, 'Ej. Súper, Café, Gimnasio', 'required maxlength="40"')}${F.colors('catColor', String(c.color).toUpperCase())}<div class="fr">${F.num('amount', 'Presupuesto mensual', cur, '4000', 'required')}${F.sel('catGroup', 'Grupo', [['', 'Sin grupo'], ...PLAN_GROUPS], c.group || '')}</div><div class="hint">El nombre y el color cambian en toda la app (movimientos, gráficas y reportes). El monto aplica a todos los meses.</div>`
-    : `${F.combo('categoryId', 'Concepto', 'Elige uno de tus conceptos o escribe uno nuevo (ej. Café, Gimnasio, Regalos) y guárdalo.', 'Escribe o elige un concepto')}${F.colors('catColor', '')}<div class="fr">${F.num('amount', 'Presupuesto mensual', '', '4000', 'required')}${F.sel('catGroup', 'Grupo', [['', 'Sin grupo'], ...PLAN_GROUPS], '')}</div><div class="hint">Aplica a todos los meses. Verás una alerta discreta si te pasas.</div>`;
+    ? `${F.text('catName', 'Concepto', c.name, 'Ej. Súper, Café, Gimnasio', 'required maxlength="40"')}${F.colors('catColor', String(c.color).toUpperCase())}<div class="fr">${F.num('amount', 'Presupuesto mensual', cur, '4000', 'required')}${F.sel('catGroup', 'Grupo', [['', 'Sin grupo'], ...PLAN_GROUPS], c.group || '')}</div>${F.toggle('catFixed', 'Es un gasto fijo (no se puede recortar)', isFixedCat(c))}<div class="hint">El nombre y el color cambian en toda la app (movimientos, gráficas y reportes). El monto aplica a todos los meses.</div>`
+    : `${F.combo('categoryId', 'Concepto', 'Elige uno de tus conceptos o escribe uno nuevo (ej. Café, Gimnasio, Regalos) y guárdalo.', 'Escribe o elige un concepto')}${F.colors('catColor', '')}<div class="fr">${F.num('amount', 'Presupuesto mensual', '', '4000', 'required')}${F.sel('catGroup', 'Grupo', [['', 'Sin grupo'], ...PLAN_GROUPS], '')}</div>${F.toggle('catFixed', 'Es un gasto fijo (no se puede recortar)', false)}<div class="hint">Aplica a todos los meses. Verás una alerta discreta si te pasas.</div>`;
   const dr = openDrawer({ title: c ? (cur ? 'Editar concepto' : 'Asignar presupuesto') : 'Nuevo concepto', eyebrow: 'Presupuesto', body, saveLabel: 'Guardar',
     onSave: (o, f) => {
       const id = c ? c.id : o.categoryId;
@@ -350,13 +350,13 @@ function formBudget(catId) {
       if (c && !need(f, (o.catName || '').trim(), 'Escribe el nombre del concepto')) return;
       if (!need(f, o.amount > 0, 'Escribe un monto')) return;
       const k = byId(S.data.categories, id);
-      if (k) { if (c) k.name = o.catName.trim(); if (o.catColor) k.color = o.catColor; if (o.catGroup) k.group = o.catGroup; else delete k.group; }
+      if (k) { if (c) k.name = o.catName.trim(); if (o.catColor) k.color = o.catColor; if (o.catGroup) k.group = o.catGroup; else delete k.group; k.fixedCost = !!o.catFixed; }
       S.data.budgets[id] = o.amount; saveData(); closeDrawer(); render(); toast('Presupuesto guardado');
     },
     onDelete: cur ? () => { delete S.data.budgets[c.id]; saveData(); closeDrawer(); render(); toast('Presupuesto quitado'); } : null, deleteLabel: 'Quitar presupuesto' });
   if (!c) {
     const form = dr.querySelector('form');
-    const paintColor = () => { const k = byId(S.data.categories, form.querySelector('[name=categoryId]').value); const hex = k ? String(k.color).toUpperCase() : ''; form.querySelectorAll('[name=catColor]').forEach(r => { r.checked = r.value === hex; }); if (k && S.data.budgets[k.id]) { const a = form.querySelector('[name=amount]'); if (!a.value) a.value = S.data.budgets[k.id]; } };
+    const paintColor = () => { const k = byId(S.data.categories, form.querySelector('[name=categoryId]').value); const hex = k ? String(k.color).toUpperCase() : ''; form.querySelectorAll('[name=catColor]').forEach(r => { r.checked = r.value === hex; }); if (k && S.data.budgets[k.id]) { const a = form.querySelector('[name=amount]'); if (!a.value) a.value = S.data.budgets[k.id]; } if (k) { form.querySelector('[name=catFixed]').checked = isFixedCat(k); const g = form.querySelector('[name=catGroup]'); if (k.group) g.value = k.group; } };
     const cb = bindCombo(form, 'categoryId', { onCreate: quickConcept, noun: 'concepto', adj: 'nuevo', types: null, empty: 'Escribe el nombre de tu primer concepto, ej. «Súper» o «Renta».' });
     const opts = () => S.data.categories.filter(k => k.kind === 'gasto').map(k => [k.id, S.data.budgets[k.id] ? `${k.name} · ${money0(S.data.budgets[k.id])}` : k.name]);
     cb.setOpts(opts());

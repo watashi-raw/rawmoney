@@ -211,10 +211,13 @@ const QK_SAVE = '__ahorro';
 function qState() { const q = S.data.quincenas || (S.data.quincenas = { income: null, q1: {} }); if (!q.q1) q.q1 = {}; if (!q.pay) q.pay = {}; return q; }
 function qIncome() { const q = qState(); const half = Math.round(PLAN_INCOME / 2); return q.income && q.income.length === 2 ? q.income : [half, PLAN_INCOME - half]; }
 function qRows(bs) {
-  const q = qState(); const rows = budGrouped(bs).filter(b => !b.head).map(b => ({ id: b.cat.id, name: b.cat.name, icon: b.cat.icon, color: col(b.cat.color), total: b.budget, group: b.cat.group }));
-  if (S.data.savingsGoal) rows.push({ id: QK_SAVE, name: 'Ahorro (meta)', icon: 'piggy', color: col('#2D8F73'), total: S.data.savingsGoal });
+  const q = qState(); const rows = budGrouped(bs).filter(b => !b.head).map(b => ({ id: b.cat.id, name: b.cat.name, icon: b.cat.icon, color: col(b.cat.color), total: b.budget, group: b.cat.group, fixed: isFixedCat(b.cat) }));
+  if (S.data.savingsGoal) rows.push({ id: QK_SAVE, name: 'Ahorro (meta)', icon: 'piggy', color: col('#2D8F73'), total: S.data.savingsGoal, fixed: !!q.saveFixed });
   return rows.map(r => { const a = Math.min(r.total, Math.max(0, q.q1[r.id] ?? Math.round(r.total / 2))); return { ...r, a, b: r.total - a, pay: q.pay[r.id] || '' }; });
 }
+/* Fijo = no se puede recortar (renta, deudas…). Por default: Casa y Deudas son fijos; se puede cambiar */
+const isFixedCat = c => c.fixedCost ?? ['casa', 'deudas'].includes(c.group);
+function setFixed(id, on) { if (id === QK_SAVE) qState().saveFixed = on; else { const c = byId(S.data.categories, id); if (c) c.fixedCost = on; } saveData(); }
 /* Cuentas y tarjetas donde puede ir cada concepto, con su color */
 function qPayOpts() {
   const acc = S.data.accounts.map((a, i) => ({ id: a.id, name: a.name, kind: a.type === 'efectivo' ? 'Efectivo' : 'Débito', color: col(a.color || CAT_COLORS[CAT_SPREAD[(i + 2) % CAT_SPREAD.length]]) }));
@@ -226,21 +229,24 @@ function quincenasHTML(bs) {
   const rows = qRows(bs); if (!rows.length) return '';
   const [i1, i2] = qIncome(); const last = new Date(+S.month.slice(0, 4), +S.month.slice(5, 7), 0).getDate();
   const pays = qPayOpts();
-  const opt = r => `<option value="">Sin asignar</option>${pays.map(p => `<option value="${p.id}"${p.id === r.pay ? ' selected' : ''}>${esc(p.name)} · ${p.kind}</option>`).join('')}`;
+  const opt = r => `<option value="">Sin asignar</option>${pays.map(p => `<option value="${p.id}"${p.id === r.pay ? ' selected' : ''}>${esc(p.name)}${fold(p.name).includes(fold(p.kind)) ? '' : ` · ${p.kind}`}</option>`).join('')}`;
   const field = (cls, lbl, k, r, v) => `<label class="qz-f ${cls}"><small>${lbl}</small><span class="qz-in"><i>$</i><input class="qn" type="number" inputmode="decimal" min="0" step="any" data-q="${k}" data-id="${r.id}" value="${v}"></span></label>`;
   const q2c = col('#3884B0');
   return `<section class="qz qz-tab" id="qz" style="--q1:var(--berry);--q2:${q2c}">
     <div class="card qz-card">
-      <div class="ch"><div><h2>Por quincena</h2><p class="qz-sub">Edita el monto del mes o el de cada quincena: la otra se ajusta sola. Elige con qué tarjeta o cuenta pagas cada concepto.</p></div><button class="btn quiet sm" data-qreset>${icon('repeat')}Partes iguales</button></div>
+      <div class="ch"><div><h2>Por quincena</h2><p class="qz-sub">Edita el monto del mes o el de cada quincena: la otra se ajusta sola. Elige con qué tarjeta o cuenta pagas cada concepto y marca cuáles son fijos.</p></div><button class="btn quiet sm" data-qreset>${icon('repeat')}Partes iguales</button></div>
       <div class="qz-legend"><span class="l1">1ª · del 1 al 15</span><span class="l2">2ª · del 16 al ${last}</span></div>
-      <div class="qz-list">
-      ${rows.map(r => `<div class="qz-row" data-row="${r.id}" style="--cat:${r.color}">
-        <div class="qz-name"><span class="qz-ic">${icon(r.icon || 'dots')}</span><b>${esc(r.name)}</b></div>
+      ${[[true, 'Gastos fijos', 'No se pueden recortar: renta, servicios, deudas…', 'shield'], [false, 'Gastos que puedes ajustar', 'De aquí sale el recorte si no cuadra', 'scissors']].map(([fx, t, sub, ic]) => `<div class="qz-sec ${fx ? 'fixed' : 'flex'}" data-sec="${fx ? 'fixed' : 'flex'}">
+        <div class="qz-sec-h"><span class="qz-sec-ic">${icon(ic)}</span><div><b>${t}</b><small>${sub}</small></div><div class="qz-sec-t"><span><em>Mes</em><b data-st="m">$0</b></span><span class="t1"><em>1ª</em><b data-st="a">$0</b></span><span class="t2"><em>2ª</em><b data-st="b">$0</b></span></div></div>
+        <div class="qz-list">
+      ${rows.filter(r => r.fixed === fx).map(r => `<div class="qz-row" data-row="${r.id}" style="--cat:${r.color}">
+        <div class="qz-name"><span class="qz-ic">${icon(r.icon || 'dots')}</span><b>${esc(r.name)}</b><button type="button" class="qz-kind" data-kind="${r.id}" aria-label="Cambiar entre fijo y ajustable">${r.fixed ? `${icon('shield')}Fijo` : `${icon('scissors')}Ajustable`}</button></div>
         <label class="qz-pay"><span class="qz-dot"></span><select data-pay="${r.id}" aria-label="Con qué pagas ${esc(r.name)}">${opt(r)}</select></label>
-        ${field('fm', 'Mes', 'm', r, r.total)}${field('fa', '1ª quincena', 'a', r, r.a)}${field('fb', '2ª quincena', 'b', r, r.b)}
+        ${field('fm', 'Mes', 'm', r, r.total)}${field('fa', '1ª<span class="lg"> quincena</span>', 'a', r, r.a)}${field('fb', '2ª<span class="lg"> quincena</span>', 'b', r, r.b)}
         <div class="qz-split" aria-hidden="true"><i class="sa"></i><i class="sb"></i></div>
       </div>`).join('')}
-      </div>
+        <div class="qz-none">Nada aquí todavía. Toca «${fx ? 'Ajustable' : 'Fijo'}» en un concepto para moverlo.</div>
+        </div></div>`).join('')}
     </div>
     <h3 class="qz-h3">${icon('cal')}Total de cada quincena</h3>
     <div class="qz-tot">
@@ -268,6 +274,7 @@ function bindQuincenas(root) {
   const paint = () => {
     const rows = rowData(); const I = [...box.querySelectorAll('[data-qi]')].map(num);
     const A = sum(rows, r => r.a), B = sum(rows, r => r.b), M = sum(rows, r => r.m);
+    box.querySelectorAll('[data-sec]').forEach(sec => { const rs = rows.filter(r => sec.contains(r.el)); [['m', 'm'], ['a', 'a'], ['b', 'b']].forEach(([k]) => { sec.querySelector(`[data-st=${k}]`).textContent = qMoney(sum(rs, r => r[k])); }); sec.classList.toggle('empty', !rs.length); });
     rows.forEach(r => { const p = r.m ? r.a / r.m * 100 : 50; r.el.style.setProperty('--pa', p + '%'); const po = pays.find(x => x.id === r.pay); r.el.style.setProperty('--pay', po ? po.color : 'var(--line-strong)'); r.el.classList.toggle('unpaid', !po); });
     [[0, A], [1, B]].forEach(([n, need]) => { const t = box.querySelector(`[data-qt="${n}"]`); t.querySelector('[data-need]').textContent = qMoney(need); const ok = need <= I[n]; t.classList.toggle('bad', !ok); t.querySelector('.qz-meter i').style.width = Math.min(100, I[n] ? need / I[n] * 100 : 100) + '%'; t.querySelector('[data-badge]').innerHTML = status(need, I[n]); });
     const mt = box.querySelector('.qz-qt.qm'); mt.querySelector('[data-mneed]').textContent = qMoney(M); mt.querySelector('[data-minc]').textContent = qMoney(I[0] + I[1]); mt.classList.toggle('bad', M > I[0] + I[1]); mt.querySelector('.qz-meter i').style.width = Math.min(100, (I[0] + I[1]) ? M / (I[0] + I[1]) * 100 : 100) + '%'; mt.querySelector('[data-mbadge]').innerHTML = status(M, I[0] + I[1]);
@@ -302,6 +309,16 @@ function bindQuincenas(root) {
     if (el.dataset.q === 'm') { const m = num(el); if (!(m > 0)) { toast('El monto del mes debe ser mayor a cero'); el.value = id === QK_SAVE ? S.data.savingsGoal : S.data.budgets[id]; el.dispatchEvent(new Event('input', { bubbles: true })); return; } if (id === QK_SAVE) S.data.savingsGoal = m; else S.data.budgets[id] = m; }
     if (el.dataset.q === 'a' || el.dataset.q === 'b') { const m = num(get(id, 'm')); if (num(el) > m) { el.value = m; el.dispatchEvent(new Event('input', { bubbles: true })); } }
     saveData();
+  });
+  box.addEventListener('click', e => {
+    const k = e.target.closest('[data-kind]'); if (!k) return;
+    const row = k.closest('[data-row]'); const toFixed = !row.closest('[data-sec=fixed]');
+    setFixed(k.dataset.kind, toFixed);
+    const list = box.querySelector(`[data-sec=${toFixed ? 'fixed' : 'flex'}] .qz-list`); list.insertBefore(row, list.querySelector('.qz-none'));
+    k.innerHTML = toFixed ? `${icon('shield')}Fijo` : `${icon('scissors')}Ajustable`;
+    row.classList.remove('moved'); void row.offsetWidth; row.classList.add('moved');
+    toast(toFixed ? `${row.querySelector('b').textContent} ahora es fijo` : `${row.querySelector('b').textContent} ahora es ajustable`);
+    paint();
   });
   box.querySelector('[data-qreset]').addEventListener('click', () => { q.q1 = {}; saveData(); render(); toast('Repartido en partes iguales'); });
   paint();
