@@ -19,6 +19,8 @@ const fmtMXN = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MX
 const fmtMXN2 = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const money = n => (Math.abs(n) % 1 > 0.004 ? fmtMXN2 : fmtMXN).format(n || 0);
 const money0 = n => fmtMXN.format(Math.round(n || 0));
+/* Siempre con centavos (Inicio) */
+const money2 = n => fmtMXN2.format(n || 0);
 const pct = n => `${Math.round(n)}%`;
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 

@@ -11,14 +11,14 @@ const LOGO = { toString: () => `<span class="mark tiger" aria-hidden="true">${ti
 /* Lo que se puede registrar: [acción, título, ayuda, ícono, tono] */
 const ADD_OPTS = [['new-gasto', 'Gasté', 'Una compra o un pago', 'bag', 'berry'], ['new-ingreso', 'Me pagaron', 'Sueldo, venta, regalo', 'arrowDown', 'sprout'], ['new-pago-tarjeta', 'Pagué la tarjeta', 'Abono a tu tarjeta', 'card', 'malaga'], ['new-pago-deuda', 'Abono a una deuda', 'Préstamo o crédito', 'bank', 'bison'], ['new-ahorro', 'Ahorré', 'Apartar dinero', 'piggy', 'oasis'], ['new-transfer', 'Moví dinero', 'Entre mis cuentas', 'swap', 'brush']];
 
-function txRow(t, click = true) {
+function txRow(t, click = true, cents = false) {
   const c = t.type === 'gasto' || t.type === 'ingreso' ? cat(t.categoryId) : null;
   const meta = { ingreso: { ic: 'arrowDown', col: 'var(--green)', sign: '+' }, gasto: { ic: null, col: null, sign: '−' }, transferencia: { ic: 'swap', col: 'var(--ink-3)', sign: '' }, pago_deuda: { ic: 'bank', col: 'var(--bad)', sign: '−' }, pago_tarjeta: { ic: 'card', col: 'var(--plum)', sign: '−' }, ahorro: { ic: 'piggy', col: 'var(--green)', sign: '' } }[t.type];
   const ic = c ? catIcon(c) : `<span class="ic" style="--cat:${meta.col};--cat-soft:color-mix(in srgb, ${meta.col} 14%, var(--surface))">${icon(meta.ic)}</span>`;
   const sub = [c ? c.name : TYPES[t.type], t.type === 'transferencia' ? `${accountName(t.accountId)} → ${accountName(t.targetId)}` : t.type === 'pago_tarjeta' ? `a ${accountName(t.targetId)}` : t.type === 'pago_deuda' ? `a ${(byId(S.data.debts, t.targetId) || {}).name || '—'}` : accountName(t.accountId), METHODS[t.method]].filter(Boolean).join(' · ');
   const tags = `${t.recurringId ? '<span class="tag rec">Recurrente</span>' : t.fixed && ['gasto', 'ingreso', 'pago_deuda'].includes(t.type) ? '<span class="tag">Fijo</span>' : ''}`;
   const cls = t.type === 'ingreso' || t.type === 'ahorro' ? 'pos' : t.type === 'pago_deuda' ? 'neg' : t.type === 'transferencia' ? 'mut' : '';
-  return `<div class="row${click ? ' click' : ''}" data-tx="${t.id}">${ic}<div class="tx"><b>${esc(t.desc)} ${tags}</b><span>${dateLabel(t.date)} · ${esc(sub)}</span></div><div class="am ${cls}">${meta.sign}${money(t.amount)}</div></div>`;
+  return `<div class="row${click ? ' click' : ''}" data-tx="${t.id}">${ic}<div class="tx"><b>${esc(t.desc)} ${tags}</b><span>${dateLabel(t.date)} · ${esc(sub)}</span></div><div class="am ${cls}">${meta.sign}${(cents ? money2 : money)(t.amount)}</div></div>`;
 }
 
 /* ---------- INICIO ---------- */
@@ -38,7 +38,7 @@ function viewInicio() {
   const usedPct = s.ingresos ? Math.min(100, Math.max(0, (s.ingresos - s.queda) / s.ingresos * 100)) : 0;
   const over = s.queda < 0, noIn = !s.ingresos;
   const say = noIn && over ? `Aún no registras lo que te pagaron en ${mes}. Cuando lo hagas, aquí verás cuánto te queda.` : over ? `Entre gastos y pagos salió más de lo que entró en ${mes}. Mira abajo en qué se fue.`
-    : cur ? `para los ${dLeft} día${dLeft === 1 ? '' : 's'} que faltan de ${mes}.${perDay ? ` Son unos <b>${money0(perDay)}</b> al día.` : ''}`
+    : cur ? `para los ${dLeft} día${dLeft === 1 ? '' : 's'} que faltan de ${mes}.${perDay ? ` Son unos <b>${money2(perDay)}</b> al día.` : ''}`
     : past ? `fue lo que sobró en ${mes}.` : `para ${mes}, si todo sale como está planeado.`;
   return `
   <div class="ph"><div><div class="eyebrow">${past ? 'Así cerró' : cur ? 'Hoy, ' + dateLong(todayISO()) : 'Mirando adelante'}</div><h1 class="squig">${past ? 'Así te fue' : 'Así vas'} en ${mes}</h1></div></div>
@@ -46,37 +46,37 @@ function viewInicio() {
     <div class="hl">
       <pre class="ascii" aria-hidden="true">${asciiArt(40, 13, 7)}</pre>
       <div class="eyebrow">${noIn && over ? 'Han salido' : over ? 'Te pasaste por' : 'Te quedan'}</div>
-      <div class="big num">${money0(Math.abs(s.queda))}</div>
+      <div class="big num">${money2(Math.abs(s.queda))}</div>
       <p class="say">${say}</p>
-      ${s.ingresos ? `<div class="meter" role="img" aria-label="Usaste ${pct(usedPct)} de lo que entró"><i style="width:${usedPct}%"></i></div><div class="meter-l"><span>Ya usaste ${pct(usedPct)} de lo que entró</span><span>Entró ${money0(s.ingresos)}</span></div>` : noIn && over ? '' : '<p class="say">Registra lo que te pagaron este mes y aquí verás cuánto te queda.</p>'}
+      ${s.ingresos ? `<div class="meter" role="img" aria-label="Usaste ${pct(usedPct)} de lo que entró"><i style="width:${usedPct}%"></i></div><div class="meter-l"><span>Ya usaste ${pct(usedPct)} de lo que entró</span><span>Entró ${money2(s.ingresos)}</span></div>` : noIn && over ? '' : '<p class="say">Registra lo que te pagaron este mes y aquí verás cuánto te queda.</p>'}
     </div>
     <div class="stub">
-      <div class="ledger"><span>${icon('wallet')}Tengo en cuentas</span><b class="num">${money0(s.disponibleCuentas)}</b><small>${S.data.accounts.map(a => `${esc(a.name)} ${money0(accountBalance(a, ym))}`).join(' · ') || 'Agrega una cuenta en Ajustes'}</small></div>
-      <div class="ledger"><span>${icon('cal')}Por pagar este mes</span><b class="num">${money0(s.comprometido)}</b><small>${s.compItems.length ? `${s.compItems.length} pago${s.compItems.length > 1 ? 's' : ''} pendiente${s.compItems.length > 1 ? 's' : ''}` : 'Nada pendiente, qué paz'}</small></div>
-      <div class="ledger"><span>${icon('piggy')}Ahorré este mes</span><b class="num">${money0(s.ahorro)}</b><small>${S.data.savingsGoal ? `Meta ${money0(S.data.savingsGoal)} · llevas ${pct(Math.min(100, s.ahorro / S.data.savingsGoal * 100))}` : `${pct(s.ahorroPct)} de lo que entró`}</small></div>
+      <div class="ledger"><span>${icon('wallet')}Tengo en cuentas</span><b class="num">${money2(s.disponibleCuentas)}</b><small>${S.data.accounts.map(a => `${esc(a.name)} ${money2(accountBalance(a, ym))}`).join(' · ') || 'Agrega una cuenta en Ajustes'}</small></div>
+      <div class="ledger"><span>${icon('cal')}Por pagar este mes</span><b class="num">${money2(s.comprometido)}</b><small>${s.compItems.length ? `${s.compItems.length} pago${s.compItems.length > 1 ? 's' : ''} pendiente${s.compItems.length > 1 ? 's' : ''}` : 'Nada pendiente, qué paz'}</small></div>
+      <div class="ledger"><span>${icon('piggy')}Ahorré este mes</span><b class="num">${money2(s.ahorro)}</b><small>${S.data.savingsGoal ? `Meta ${money2(S.data.savingsGoal)} · llevas ${pct(Math.min(100, s.ahorro / S.data.savingsGoal * 100))}` : `${pct(s.ahorroPct)} de lo que entró`}</small></div>
     </div>
   </section>
   <section class="quickgrid" aria-label="Registrar">${ADD_OPTS.slice(0, 4).map(([act, tt, sub, ic, tone]) => `<button class="addopt" data-act="${act}" style="--tone:var(--${tone})"><span class="blob">${icon(ic)}</span><b>${tt}</b><small>${sub}</small></button>`).join('')}<button class="addopt more" data-act="add"><span class="blob">${icon('more')}</span><b>Otra cosa</b><small>Ahorro, transferencia…</small></button></section>
   <section class="stats g4">
-    <div class="stat pos"><div class="lb"><i></i>Ingresos</div><div class="v num">${money0(s.ingresos)}</div><div class="s">${s.count ? 'recibidos este mes' : 'sin movimientos'}</div></div>
-    <div class="stat"><div class="lb"><i></i>Gastos</div><div class="v num">${money0(s.gastosTotal)}</div><div class="s"><b>${money0(s.fijos)}</b> fijos · <b>${money0(s.variables)}</b> variables</div></div>
-    <div class="stat neg"><div class="lb"><i></i>Debo en tarjetas</div><div class="v num">${money0(s.tarjetasTotal)}</div><div class="s">${s.cards.length} tarjeta${s.cards.length === 1 ? '' : 's'} · otras deudas <b>${money0(s.deudasTotal)}</b></div></div>
-    <div class="stat pos"><div class="lb"><i></i>Ahorro del mes</div><div class="v num">${money0(s.ahorro)}</div><div class="s"><b>${pct(s.ahorroPct)}</b> del ingreso${S.data.savingsGoal ? ` · meta ${money0(S.data.savingsGoal)}` : ''}</div></div>
+    <div class="stat pos"><div class="lb"><i></i>Ingresos</div><div class="v num">${money2(s.ingresos)}</div><div class="s">${s.count ? 'recibidos este mes' : 'sin movimientos'}</div></div>
+    <div class="stat"><div class="lb"><i></i>Gastos</div><div class="v num">${money2(s.gastosTotal)}</div><div class="s"><b>${money2(s.fijos)}</b> fijos · <b>${money2(s.variables)}</b> variables</div></div>
+    <div class="stat neg"><div class="lb"><i></i>Debo en tarjetas</div><div class="v num">${money2(s.tarjetasTotal)}</div><div class="s">${s.cards.length} tarjeta${s.cards.length === 1 ? '' : 's'} · otras deudas <b>${money2(s.deudasTotal)}</b></div></div>
+    <div class="stat pos"><div class="lb"><i></i>Ahorro del mes</div><div class="v num">${money2(s.ahorro)}</div><div class="s"><b>${pct(s.ahorroPct)}</b> del ingreso${S.data.savingsGoal ? ` · meta ${money2(S.data.savingsGoal)}` : ''}</div></div>
   </section>
   <section class="g23">
     <div class="card"><div class="ch"><h2>¿En qué se fue mi dinero?</h2><button class="lnk" data-go="gastos">Ver detalle</button></div>
-      ${s.gastosTotal ? `<div class="donutwrap">${donutSVG(donutItems, 'gastado', money0(s.gastosTotal))}<div class="legend">${donutItems.map(i => `<div class="l" data-key="${i.key}" style="--cat:${i.color}"><i></i><span>${esc(i.label)}</span><b>${money0(i.value)}</b><em>${pct(i.value / s.gastosTotal * 100)}</em></div>`).join('')}</div></div>` : '<div class="empty"><h3>Aún no hay gastos</h3><p>Registra tu primer gasto y aquí verás la distribución.</p></div>'}
+      ${s.gastosTotal ? `<div class="donutwrap">${donutSVG(donutItems, 'gastado', money2(s.gastosTotal))}<div class="legend">${donutItems.map(i => `<div class="l" data-key="${i.key}" style="--cat:${i.color}"><i></i><span>${esc(i.label)}</span><b>${money2(i.value)}</b><em>${pct(i.value / s.gastosTotal * 100)}</em></div>`).join('')}</div></div>` : '<div class="empty"><h3>Aún no hay gastos</h3><p>Registra tu primer gasto y aquí verás la distribución.</p></div>'}
     </div>
     <div class="card"><div class="ch"><h2>Próximos pagos</h2><button class="lnk" data-go="calendario">Calendario</button></div>
-      <div class="list">${upcoming.length ? upcoming.map(e => `<div class="row"><span class="ic" style="--cat:${KIND_COLOR[e.kind]};--cat-soft:color-mix(in srgb, ${KIND_COLOR[e.kind]} 14%, var(--surface))">${icon(e.kind === 'tarjeta' ? 'card' : e.kind === 'deuda' ? 'bank' : e.kind === 'meses' ? 'layers' : 'repeat')}</span><div class="tx"><b>${esc(e.name)}</b><span>${dateLong(e.date)} · ${KIND_LABEL[e.kind]}</span></div><div class="am">${e.amount != null ? money0(e.amount) : ''}<small class="when${daysUntil(e.date) <= 3 ? ' soon' : ''}">${whenLabel(e.date)}</small></div></div>`).join('') : '<div class="empty"><h3>Sin pagos pendientes</h3><p>Todo lo de este mes ya está cubierto.</p></div>'}</div>
+      <div class="list">${upcoming.length ? upcoming.map(e => `<div class="row"><span class="ic" style="--cat:${KIND_COLOR[e.kind]};--cat-soft:color-mix(in srgb, ${KIND_COLOR[e.kind]} 14%, var(--surface))">${icon(e.kind === 'tarjeta' ? 'card' : e.kind === 'deuda' ? 'bank' : e.kind === 'meses' ? 'layers' : 'repeat')}</span><div class="tx"><b>${esc(e.name)}</b><span>${dateLong(e.date)} · ${KIND_LABEL[e.kind]}</span></div><div class="am">${e.amount != null ? money2(e.amount) : ''}<small class="when${daysUntil(e.date) <= 3 ? ' soon' : ''}">${whenLabel(e.date)}</small></div></div>`).join('') : '<div class="empty"><h3>Sin pagos pendientes</h3><p>Todo lo de este mes ya está cubierto.</p></div>'}</div>
     </div>
   </section>
   <section class="g2">
     <div class="card"><div class="ch"><h2>Presupuesto</h2><button class="lnk" data-go="presupuesto">Ver todo</button></div>
-      ${bud.length ? bud.map(b => `<div class="bud${b.over ? ' over' : ''}"><div class="h">${catIcon(b.cat)}<div class="nm">${esc(b.cat.name)}<small>${b.over ? `Excedido por ${money0(-b.left)}` : `Quedan ${money0(b.left)}`}</small></div><div class="v"><b>${money0(b.spent)}</b><span>de ${money0(b.budget)}</span></div></div><div class="bar ${b.over ? 'b' : b.pct > 85 ? 'w' : 'g'}"><i style="width:${Math.min(100, b.pct)}%"></i></div></div>`).join('') : '<div class="empty"><h3>Sin presupuestos</h3><p>Define cuánto quieres gastar por categoría.</p><button class="btn secondary sm" data-go="presupuesto">Crear presupuesto</button></div>'}
+      ${bud.length ? bud.map(b => `<div class="bud${b.over ? ' over' : ''}"><div class="h">${catIcon(b.cat)}<div class="nm">${esc(b.cat.name)}<small>${b.over ? `Excedido por ${money2(-b.left)}` : `Quedan ${money2(b.left)}`}</small></div><div class="v"><b>${money2(b.spent)}</b><span>de ${money2(b.budget)}</span></div></div><div class="bar ${b.over ? 'b' : b.pct > 85 ? 'w' : 'g'}"><i style="width:${Math.min(100, b.pct)}%"></i></div></div>`).join('') : '<div class="empty"><h3>Sin presupuestos</h3><p>Define cuánto quieres gastar por categoría.</p><button class="btn secondary sm" data-go="presupuesto">Crear presupuesto</button></div>'}
     </div>
     <div class="card"><div class="ch"><h2>Últimos movimientos</h2><button class="lnk" data-go="movimientos">Ver todos</button></div>
-      <div class="list">${recent.length ? recent.map(t => txRow(t)).join('') : '<div class="empty"><h3>Nada registrado</h3><p>Usa “Registrar gasto” o “Registrar ingreso”.</p></div>'}</div>
+      <div class="list">${recent.length ? recent.map(t => txRow(t, true, true)).join('') : '<div class="empty"><h3>Nada registrado</h3><p>Usa “Registrar gasto” o “Registrar ingreso”.</p></div>'}</div>
     </div>
   </section>`;
 }
@@ -281,6 +281,42 @@ function quincenasHTML(bs) {
     <div class="qz-cards" data-cards></div>
   </section>`;
 }
+/* Arma el movimiento de un concepto en una quincena (gasto o ahorro) según con qué se paga */
+function qTxFor(id, k, amt, payId, name) {
+  const ym = S.month; const qn = k === 'a' ? '1ª quincena' : '2ª quincena'; const isSave = id === QK_SAVE;
+  const card = byId(S.data.cards, payId); const acc = byId(S.data.accounts, payId) || (!card ? S.data.accounts[0] : null);
+  if (!(amt > 0) || (isSave ? !acc : !(card || acc))) return null;
+  const today = todayISO(); const d = +today.slice(8, 10);
+  const date = today.slice(0, 7) === ym && (k === 'a' ? d <= 15 : d >= 16) ? today : `${ym}-${k === 'a' ? '01' : '16'}`;
+  return isSave ? { id: uid(), type: 'ahorro', amount: amt, date, desc: `Ahorro · ${qn}`, accountId: acc.id, categoryId: null, targetId: null, fixed: false, notes: '' }
+    : { id: uid(), type: 'gasto', amount: amt, date, desc: `${name} · ${qn}`, categoryId: id, accountId: card ? card.id : acc.id, method: card ? 'credito' : (acc.type === 'efectivo' ? 'efectivo' : 'debito'), fixed: isFixedCat(byId(S.data.categories, id) || {}), targetId: null, notes: '' };
+}
+/* Marca (o desmarca) de golpe todo lo que va en una tarjeta/cuenta en una quincena */
+function qToggleCard(payId, k, box) {
+  const P = qPaid(); const qn = k === 'a' ? '1ª quincena' : '2ª quincena';
+  const rows = [...box.querySelectorAll('[data-row]')].filter(r => r.querySelector('[data-pay]').value === payId).map(r => ({ id: r.dataset.row, name: r.querySelector('b').textContent, amt: parseFloat(r.querySelector(`[data-q=${k}]`).value) || 0 })).filter(r => r.amt > 0);
+  if (!rows.length) return;
+  const pay = byId(S.data.cards, payId) || byId(S.data.accounts, payId); const pname = pay ? pay.name : 'Sin asignar';
+  const pending = rows.filter(r => !P[`${r.id}:${k}`]);
+  const refresh = () => { const y = scrollY; render(); window.scrollTo(0, y); };
+  if (pending.length) {
+    const total = sum(pending, r => r.amt);
+    const txs = pending.map(r => ({ r, tx: qTxFor(r.id, k, r.amt, payId, r.name) }));
+    const can = txs.filter(x => x.tx);
+    const btns = [];
+    if (can.length) btns.push({ label: `${icon('plus')}Sí, registrar ${can.length} movimiento${can.length === 1 ? '' : 's'}`, cls: 'primary', fn: () => { txs.forEach(({ r, tx }) => { if (tx) { S.data.transactions.push(tx); P[`${r.id}:${k}`] = tx.id; } else P[`${r.id}:${k}`] = true; }); saveData(); refresh(); toast(`${pname} · ${qn}: pagado y registrado (${money0(total)})`); } });
+    btns.push({ label: `${icon('check')}Solo marcar como pagado`, cls: can.length ? 'quiet' : 'primary', fn: () => { pending.forEach(r => { P[`${r.id}:${k}`] = true; }); saveData(); refresh(); toast(`${pname} · ${qn}: marcado como pagado`); } });
+    choiceBox(`¿Marcar ${pname} · ${qn} como pagada?`, `Se marcan <b>${pending.length} concepto${pending.length === 1 ? '' : 's'}</b> por <b>${money0(total)}</b>: ${pending.map(r => esc(r.name)).join(', ')}. ¿También los registro como movimientos? Si ya los registraste, elige «Solo marcar».`, btns);
+  } else {
+    const linked = rows.map(r => P[`${r.id}:${k}`]).filter(v => typeof v === 'string').map(id => byId(S.data.transactions, id)).filter(Boolean);
+    const unmark = () => rows.forEach(r => delete P[`${r.id}:${k}`]);
+    if (!linked.length) { unmark(); saveData(); refresh(); toast(`${pname} · ${qn}: desmarcada`); return; }
+    choiceBox(`¿Desmarcar ${pname} · ${qn}?`, `Al marcarla se registraron <b>${linked.length} movimiento${linked.length === 1 ? '' : 's'}</b> por <b>${money0(sum(linked))}</b>.`, [
+      { label: `${icon('trash')}Desmarcar y borrar los movimientos`, cls: 'danger', fn: () => { const ids = new Set(linked.map(t => t.id)); S.data.transactions = S.data.transactions.filter(t => !ids.has(t.id)); unmark(); saveData(); refresh(); toast('Movimientos borrados'); } },
+      { label: 'Solo desmarcar (conservar movimientos)', cls: 'quiet', fn: () => { unmark(); saveData(); refresh(); } },
+    ]);
+  }
+}
 /* Marcar una quincena como pagada: pregunta si también se registra como movimiento */
 function qTogglePaid(ck, paint) {
   const P = qPaid(); const pk = ck.dataset.chk; const [id, k] = pk.split(':'); const ym = S.month;
@@ -298,8 +334,7 @@ function qTogglePaid(ck, paint) {
     const where = isSave ? (acc ? acc.name : '') : card ? `${card.name} (crédito)` : acc ? acc.name : '';
     const btns = [];
     if (canTx) btns.push({ label: `${icon('plus')}Sí, registrar movimiento`, cls: 'primary', fn: () => {
-      const tx = isSave ? { id: uid(), type: 'ahorro', amount: amt, date, desc: `Ahorro · ${qn}`, accountId: acc.id, categoryId: null, targetId: null, fixed: false, notes: '' }
-        : { id: uid(), type: 'gasto', amount: amt, date, desc: `${name} · ${qn}`, categoryId: id, accountId: card ? card.id : acc.id, method: card ? 'credito' : (acc.type === 'efectivo' ? 'efectivo' : 'debito'), fixed: isFixedCat(byId(S.data.categories, id) || {}), targetId: null, notes: '' };
+      const tx = qTxFor(id, k, amt, payId, name);
       S.data.transactions.push(tx); P[pk] = tx.id; saveData(); refresh(); toast(`Pagado y registrado: ${money0(amt)}`); } });
     btns.push({ label: `${icon('check')}Solo marcar como pagado`, cls: canTx ? 'quiet' : 'primary', fn: () => { P[pk] = true; saveData(); setUI(true); toast('Marcado como pagado'); } });
     choiceBox(`${name} · ${qn}: ¿lo registro como movimiento?`,
@@ -344,7 +379,8 @@ function bindQuincenas(root) {
       return `<div class="qz-cc${g.id ? '' : ' none'}${g.kind === 'Crédito' ? ' credit' : ''}" style="--cc:${g.color}">
         <div class="qz-cc-top"><span class="qz-cc-chip"></span><div><b>${esc(g.name)}</b><small>${g.kind}${g.rows.length ? ` · ${g.rows.length} concepto${g.rows.length === 1 ? '' : 's'}` : ''}</small></div></div>
         <div class="qz-cc-big num">${qMoney(T)}<small>/ mes</small></div>
-        <div class="qz-cc-q"><span><i class="d1"></i>1ª ${qMoney(GA)}</span><span><i class="d2"></i>2ª ${qMoney(GB)}</span></div>
+        <div class="qz-cc-pay">${[['a', '1ª quincena', GA], ['b', '2ª quincena', GB]].map(([k, l, v]) => { const rs = g.rows.filter(r => r[k] > 0); const pd = rs.filter(r => P[`${r.id}:${k}`]); const all = rs.length && pd.length === rs.length; const part = pd.length && !all;
+          return `<button type="button" class="qz-ccp ${k}${all ? ' on' : ''}${part ? ' part' : ''}" data-ccpay="${g.id}:${k}"${rs.length ? '' : ' disabled'} aria-pressed="${!!all}"><span class="qz-ccp-box">${icon('check')}</span><span class="qz-ccp-t"><em>${l}</em><b>${qMoney(v)}</b><small>${!rs.length ? 'Nada que pagar' : all ? 'Pagada ✓' : part ? `${pd.length} de ${rs.length} pagados` : 'Marcar pagada'}</small></span></button>`; }).join('')}</div>
         <div class="qz-cc-bar">${g.rows.map(r => `<i style="flex:${r.m};background:${r.color}" title="${esc(r.name)}"></i>`).join('') || '<em>Sin conceptos todavía</em>'}</div>
         ${g.rows.length ? `<div class="qz-cc-tags">${g.rows.map(r => `<span style="--c:${r.color}">${esc(r.name)}</span>`).join('')}</div>` : ''}
         ${lim != null ? `<div class="qz-cc-lim"><div><span>De tu línea de ${qMoney(g.limit)}</span><b>${pct(lim)}</b></div><div class="qz-meter"><i style="width:${lim}%"></i></div></div>` : ''}
@@ -370,6 +406,8 @@ function bindQuincenas(root) {
     saveData();
   });
   box.addEventListener('click', e => {
+    const cp = e.target.closest('[data-ccpay]');
+    if (cp) { const [pid, k] = cp.dataset.ccpay.split(':'); qToggleCard(pid, k, box); return; }
     const ck = e.target.closest('[data-chk]');
     if (ck) { qTogglePaid(ck, paint); return; }
     const k = e.target.closest('[data-kind]'); if (!k) return;

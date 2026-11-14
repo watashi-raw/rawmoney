@@ -1240,3 +1240,29 @@ body{background-color:var(--bg);background-image:var(--grain);background-size:18
 .modal .acts.col{display:flex;flex-direction:column;align-items:stretch;gap:8px}
 .modal .acts.col .btn{justify-content:center;width:100%}
 .modal .acts.col .btn .i{width:16px;height:16px}
+
+/* Tarjeta/cuenta: pagado por quincena */
+.qz-cc-pay{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.qz-ccp{display:flex;align-items:center;gap:9px;padding:9px 10px;border-radius:12px;border:1.5px solid rgba(127,127,127,.35);background:rgba(255,255,255,.55);color:#2a1a26;text-align:left;cursor:pointer;font:inherit;transition:background .2s,border-color .2s,transform .12s var(--press)}
+.qz-cc:not(.credit) .qz-ccp{background:var(--surface);color:var(--ink)}
+.qz-ccp:hover:not(:disabled){border-color:var(--good)}
+.qz-ccp:active:not(:disabled){transform:scale(.97)}
+.qz-ccp:disabled{opacity:.55;cursor:default}
+.qz-ccp-box{flex:none;width:22px;height:22px;border-radius:7px;border:1.8px solid currentColor;display:grid;place-items:center;color:transparent;opacity:.7}
+.qz-ccp-box .i{width:14px;height:14px;stroke-width:3}
+.qz-ccp-t{display:flex;flex-direction:column;min-width:0;line-height:1.2}
+.qz-ccp-t em{font-style:normal;font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;font-weight:700;opacity:.75}
+.qz-ccp.a .qz-ccp-t em{color:var(--q1)} .qz-ccp.b .qz-ccp-t em{color:var(--q2)}
+.qz-cc.credit .qz-ccp .qz-ccp-t em{color:inherit}
+.qz-ccp-t b{font-size:15px;font-variant-numeric:tabular-nums}
+.qz-ccp-t small{font-size:11px;font-weight:700;opacity:.75}
+.qz-ccp.part .qz-ccp-box{background:linear-gradient(135deg,var(--good) 50%,transparent 50%);opacity:1;border-color:var(--good)}
+.qz-ccp.on{background:var(--good-soft);border-color:var(--good);color:var(--ink)}
+.qz-cc.credit .qz-ccp.on{background:#EAF2D9;color:#2a1a26}
+.qz-ccp.on .qz-ccp-box{background:var(--good);border-color:var(--good);color:#fff;opacity:1}
+.qz-ccp.on small{color:var(--good);opacity:1}
+@media (max-width:640px){.qz-ccp{padding:8px}.qz-ccp-t b{font-size:14px}}
+.qz-ccp-box{border-color:rgba(42,26,38,.45);opacity:1;background:rgba(255,255,255,.6)}
+.qz-cc:not(.credit) .qz-ccp-box{border-color:var(--line-strong);background:var(--surface)}
+.qz-ccp.on .qz-ccp-box{background:var(--good);border-color:var(--good)}
+.qz-cc.credit .qz-ccp:not(.on){background:rgba(255,255,255,.82);color:#2a1a26}.qz-cc.credit .qz-ccp small{opacity:.8}
