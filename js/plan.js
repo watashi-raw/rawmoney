@@ -279,6 +279,13 @@ function bindCardSvc(root) {
 const GROUP_COLORS = { casa: '#3884B0', diario: '#2D8F73', metas: '#9B669A', deudas: '#B8505F', '': '#8D8481' };
 const miniLegend = items => `<div class="legend sm">${items.map(i => `<div class="l" style="--cat:${i.color}"><i></i><span>${esc(i.label)}</span><b class="num">${money0(i.value)}</b><em>${i.pct}</em></div>`).join('')}</div>`;
 function chartCard(title, sub, body, cls = '') { return `<div class="card chartc ${cls}"><div class="ch"><h2>${title}</h2>${sub ? `<span class="ch-sub">${sub}</span>` : ''}</div>${body}</div>`; }
+function ringItems(ym, tot, sp, dayPct) {
+  const s = monthSummary(ym); const goal = S.data.savingsGoal || 0;
+  const it = [{ label: 'Gastado del presupuesto', v: tot ? sp / tot : 0, color: col('#B8505F'), text: `${money0(sp)} de ${money0(tot)}` },
+    { label: 'Avance del mes', v: dayPct, color: col('#3884B0'), text: ym === thisMonth() ? `día ${Number(todayISO().slice(8))} de ${daysIn(ym)}` : (dayPct >= 1 ? 'mes cerrado' : 'aún no empieza') }];
+  if (goal) it.push({ label: 'Ahorro del mes', v: s.ahorro / goal, color: col('#2D8F73'), over: col('#1C6B54'), text: `${money0(s.ahorro)} de ${money0(goal)}` });
+  return it;
+}
 function budgetChartsHTML(bs) {
   if (!bs.length) return '';
   const ym = S.month; const tot = sum(bs, b => b.budget), sp = sum(bs, b => b.spent);
@@ -288,7 +295,7 @@ function budgetChartsHTML(bs) {
   const top = [...bs].sort((a, b) => b.budget - a.budget).slice(0, 8).map(b => ({ label: b.cat.name, value: b.spent, max: b.budget, color: col(b.cat.color) }));
   return `<section class="bud-charts">
     ${chartCard('¿Cómo se reparte?', `${money0(tot)} al mes`, `<div class="donutwrap sm">${donutSVG(G, 'presupuesto', money0(tot))}${miniLegend(G)}</div>`)}
-    ${chartCard('¿Cuánto llevo?', cur ? `Va el ${pct(dayPct * 100)} del mes` : '', `${gaugeSVG(tot ? sp / tot : 0, dayPct || null, pct(tot ? sp / tot * 100 : 0), `${money0(sp)} de ${money0(tot)}`)}<p class="g-note">${!tot ? '' : sp > tot ? `Te pasaste por <b>${money0(sp - tot)}</b>.` : cur && sp / tot > dayPct + .08 ? 'Vas gastando más rápido de lo que avanza el mes.' : `Te quedan <b>${money0(tot - sp)}</b> del presupuesto.`}</p>`)}
+    ${chartCard('¿Cuánto llevo?', cur ? `Va el ${pct(dayPct * 100)} del mes` : '', `${ringsSVG(ringItems(ym, tot, sp, dayPct), pct(tot ? sp / tot * 100 : 0), 'gastado')}<p class="g-note">${!tot ? '' : sp > tot ? `Te pasaste por <b>${money0(sp - tot)}</b>.` : cur && sp / tot > dayPct + .08 ? 'Vas gastando más rápido de lo que avanza el mes.' : `Te quedan <b>${money0(tot - sp)}</b> del presupuesto.`}</p>`)}
     ${chartCard('Presupuesto vs. gastado', 'tus conceptos más grandes', hbarsHTML(top), 'wide')}
   </section>`;
 }
@@ -324,6 +331,6 @@ function cardSvcChartHTML() {
   const paid = sum(L.filter(s => csPaid()[s.id]), s => s.amount);
   return `<section class="bud-charts two">
     ${chartCard('Por tarjeta', '', `<div class="donutwrap sm">${donutSVG(it, 'al mes', money0(tot))}${miniLegend(it)}</div>`)}
-    ${chartCard('Pagado este mes', '', `${gaugeSVG(tot ? paid / tot : 0, null, pct(tot ? paid / tot * 100 : 0), `${money0(paid)} de ${money0(tot)}`, 'var(--good)')}`)}
+    ${chartCard('Pagado este mes', '', ringsSVG([{ label: 'Pagados', v: tot ? paid / tot : 0, color: col('#2D8F73'), text: `${money0(paid)} de ${money0(tot)}` }, { label: 'Servicios', v: L.length ? L.filter(s => csPaid()[s.id]).length / L.length : 0, color: col('#3884B0'), text: `${L.filter(s => csPaid()[s.id]).length} de ${L.length}` }], pct(tot ? paid / tot * 100 : 0), 'pagado'))}
   </section>`;
 }

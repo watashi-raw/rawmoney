@@ -12,24 +12,38 @@ function bindTips(root) {
 const nice = max => { if (max <= 0) return 1000; const p = Math.pow(10, Math.floor(Math.log10(max))); const f = max / p; const n = f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10; return n * p; };
 const kfmt = v => v >= 1000 ? `${Math.round(v / 1000)}k` : String(Math.round(v));
 
-/* Donut: items [{label, value, color}] */
+/* Arco por su línea central (se dibuja con trazo grueso y puntas redondas) */
+function arcLine(cx, cy, R, s, e) {
+  const P = a => `${(cx + R * Math.cos(a)).toFixed(2)},${(cy + R * Math.sin(a)).toFixed(2)}`;
+  if (e - s < 0.002) return `M${P(s)} L${P(s)}`;
+  if (e - s >= Math.PI * 2 - 0.002) { const m = s + Math.PI; return `M${P(s)} A${R},${R} 0 1 1 ${P(m)} A${R},${R} 0 1 1 ${P(s + Math.PI * 2 - 0.001)}`; }
+  return `M${P(s)} A${R},${R} 0 ${(e - s) > Math.PI ? 1 : 0} 1 ${P(e)}`;
+}
+/* Ángulos de cada rebanada, recortados para que las puntas redondas no se encimen */
+function donutAngles(items, R, W) {
+  const total = items.reduce((a, x) => a + x.value, 0); const n = items.filter(x => x.value > 0).length;
+  const cap = (W / 2) / R, gap = n > 1 ? 0.07 : 0; let a0 = -Math.PI / 2;
+  return items.map(it => { const frac = total ? it.value / total : 0; const a1 = a0 + frac * Math.PI * 2; let s = a0 + cap + gap / 2, e = a1 - cap - gap / 2; if (frac <= 0) { s = e = null; } else if (e < s) { s = e = (a0 + a1) / 2; } a0 = a1; return { s, e, frac }; });
+}
+/* Dona redonda tipo anillo de reloj: items [{label, value, color}] */
 function donutSVG(items, centerLabel, centerValue) {
   const total = items.reduce((a, x) => a + x.value, 0);
-  const R = 84, r = 60, cx = 100, cy = 100; let a0 = -Math.PI / 2; const gap = total ? 0.03 : 0;
-  const arcs = items.map(it => {
-    const frac = total ? it.value / total : 0; const a1 = a0 + frac * Math.PI * 2;
-    const s = a0 + gap / 2, e = a1 - gap / 2; let path = '';
-    if (frac > 0.005) {
-      const big = (e - s) > Math.PI ? 1 : 0;
-      const p = (rad, ang) => `${(cx + rad * Math.cos(ang)).toFixed(2)},${(cy + rad * Math.sin(ang)).toFixed(2)}`;
-      path = `M${p(R, s)} A${R},${R} 0 ${big} 1 ${p(R, e)} L${p(r, e)} A${r},${r} 0 ${big} 0 ${p(r, s)} Z`;
-    }
-    a0 = a1;
-    const ds = `data-s="${(s).toFixed(4)}" data-e="${(e).toFixed(4)}"`;
-    return `<path d="${path}" ${frac > 0.005 ? ds : ''} fill="${it.color}" data-tip="<b>${esc(it.label)}</b>${money0(it.value)} · ${pct(frac * 100)}" data-key="${esc(it.key || it.label)}"></path>`;
-  }).join('');
-  const empty = total ? '' : `<circle cx="${cx}" cy="${cy}" r="${(R + r) / 2}" fill="none" stroke="var(--surface-3)" stroke-width="${R - r}"/>`;
-  return `<div class="donut"><svg viewBox="0 0 200 200" data-lq="donut" data-cx="${cx}" data-cy="${cy}" data-r1="${R}" data-r0="${r}">${empty}${arcs}</svg><div class="c"><b>${centerValue}</b><span>${centerLabel}</span></div></div>`;
+  const R = 74, W = 22, cx = 100, cy = 100; const A = donutAngles(items, R, W);
+  const arcs = items.map((it, i) => { const a = A[i]; if (a.s == null) return '';
+    return `<path d="${arcLine(cx, cy, R, a.s, a.e)}" data-s="${a.s.toFixed(4)}" data-e="${a.e.toFixed(4)}" fill="none" stroke="${it.color}" stroke-width="${W}" stroke-linecap="round" data-tip="<b>${esc(it.label)}</b>${money0(it.value)} · ${pct(a.frac * 100)}" data-key="${esc(it.key || it.label)}"></path>`; }).join('');
+  const track = `<circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="var(--surface-3)" stroke-width="${W}" opacity="${total ? .45 : 1}"/>`;
+  return `<div class="donut"><svg viewBox="0 0 200 200" data-lq="donut" data-cx="${cx}" data-cy="${cy}" data-rm="${R}" data-w="${W}">${track}${arcs}</svg><div class="c"><b>${centerValue}</b><span>${centerLabel}</span></div></div>`;
+}
+/* Anillos concéntricos como los de salud de un reloj: items [{label, v (0–1+), color, text}] */
+function ringsSVG(items, big, small) {
+  const W = 17, step = W + 5, cx = 100, cy = 100;
+  const rings = items.map((it, i) => { const r = 84 - i * step; const L = 2 * Math.PI * r; const v = Math.max(0, it.v || 0); const f = Math.min(1, v);
+    return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${it.color}" stroke-width="${W}" opacity=".16"/>
+      <circle class="rg-fill" cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${it.color}" stroke-width="${W}" stroke-linecap="round" transform="rotate(-90 ${cx} ${cy})" data-len="${L.toFixed(1)}" data-v="${f.toFixed(4)}" style="stroke-dasharray:${(f * L).toFixed(1)} ${(L * 2).toFixed(1)}" data-tip="<b>${esc(it.label)}</b>${esc(it.text || pct(v * 100))}"/>
+      ${v > 1 ? `<circle class="rg-fill" cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${it.over || 'var(--bad)'}" stroke-width="${W}" stroke-linecap="round" transform="rotate(-90 ${cx} ${cy})" data-len="${L.toFixed(1)}" data-v="${Math.min(1, v - 1).toFixed(4)}" style="stroke-dasharray:${(Math.min(1, v - 1) * L).toFixed(1)} ${(L * 2).toFixed(1)}"/>` : ''}`; }).join('');
+  const inner = 84 - (items.length - 1) * step - W / 2 - 4;
+  return `<div class="ringwrap"><div class="rings"><svg viewBox="0 0 200 200" data-lq="rings">${rings}</svg>${big ? `<div class="c" style="--in:${(inner * 2 / 200 * 100).toFixed(0)}%"><b class="num">${big}</b>${small ? `<span>${small}</span>` : ''}</div>` : ''}</div>
+    <div class="ring-leg">${items.map(it => `<div class="rl" style="--c:${it.color}"><i></i><div><b>${esc(it.label)}</b><span>${esc(it.text || '')}</span></div><em class="num">${pct(Math.max(0, it.v || 0) * 100)}</em></div>`).join('')}</div></div>`;
 }
 
 /* Líneas múltiples (misma unidad): series [{name,color,values[]}], labels[] */
@@ -69,10 +83,10 @@ function barsSVG(labels, series, opts = {}) {
     const cx = pl + slot * (i + .5);
     if (stacked) {
       let acc = 0;
-      series.forEach(s => { const v = s.values[i]; if (v <= 0) return; const y1 = y(acc + v), y0 = y(acc); bars += `<rect x="${cx - bw / 2}" y="${y1}" width="${bw}" height="${Math.max(0, y0 - y1 - 1)}" rx="2" fill="${s.color}" data-tip="<b>${esc(l)} · ${esc(s.name)}</b>${money0(v)}"/>`; acc += v; });
+      series.forEach(s => { const v = s.values[i]; if (v <= 0) return; const y1 = y(acc + v), y0 = y(acc); bars += `<rect x="${cx - bw / 2}" y="${y1}" width="${bw}" height="${Math.max(0, y0 - y1 - 2)}" rx="${Math.min(bw / 2, Math.max(0, y0 - y1 - 2) / 2).toFixed(1)}" fill="${s.color}" data-tip="<b>${esc(l)} · ${esc(s.name)}</b>${money0(v)}"/>`; acc += v; });
     } else {
       const gw = bw * series.length + 3 * (series.length - 1); const x0 = cx - gw / 2;
-      series.forEach((s, k) => { const v = s.values[i]; const h = Math.max(0, y(0) - y(v)); bars += `<rect x="${x0 + k * (bw + 3)}" y="${y(v)}" width="${bw}" height="${h}" rx="3" fill="${s.color}" data-tip="<b>${esc(l)} · ${esc(s.name)}</b>${money0(v)}"/>`; });
+      series.forEach((s, k) => { const v = s.values[i]; const h = Math.max(0, y(0) - y(v)); bars += `<rect x="${x0 + k * (bw + 3)}" y="${y(v)}" width="${bw}" height="${h}" rx="${Math.min(bw / 2, h / 2).toFixed(1)}" fill="${s.color}" data-tip="<b>${esc(l)} · ${esc(s.name)}</b>${money0(v)}"/>`; });
     }
   });
   const legend = series.length > 1 ? `<div class="leg2">${series.map(s => `<span><i class="sq" style="--c:${s.color}"></i>${esc(s.name)}</span>`).join('')}</div>` : '';

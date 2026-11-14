@@ -96,7 +96,7 @@ function render() {
   if (v.bind) v.bind(content);
   Cat.mount(); Cat.sync(false);
   bindTips(app);
-  Liquid.enter(app);
+  { const k = `${S.view}|${S.view === 'presupuesto' ? S.budTab : ''}|${S.month}`; Liquid.enter(app, k !== S._lqKey); S._lqKey = k; }
   // navegación y acciones
   app.querySelectorAll('[data-m]').forEach(b => b.addEventListener('click', () => { S.month = addMonths(S.month, Number(b.dataset.m)); S.histB = S.month; render(); }));
   app.querySelectorAll('[data-act]').forEach(b => b.addEventListener('click', e => { const a = b.dataset.act; if (a === 'pick') { S.month = thisMonth(); render(); return; } if (ACTIONS[a]) { e.preventDefault(); ACTIONS[a](); } }));

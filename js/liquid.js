@@ -21,37 +21,40 @@ const Liquid = (() => {
   /* Termina todo de golpe (para capturas e impresión) */
   function settle() { jobs.forEach(j => { j.settle && j.settle(); }); jobs.clear(); cancelAnimationFrame(raf); raf = 0; last = 0; }
 
-  /* ---------- Donas: las rebanadas crecen como ola y ondulan ---------- */
-  const P = (cx, cy, rad, ang) => `${(cx + rad * Math.cos(ang)).toFixed(2)},${(cy + rad * Math.sin(ang)).toFixed(2)}`;
-  function arc(cx, cy, R, r, s, e) {
-    if (e - s < .002 || R <= r) return '';
-    const big = (e - s) > Math.PI ? 1 : 0;
-    return `M${P(cx, cy, R, s)} A${R},${R} 0 ${big} 1 ${P(cx, cy, R, e)} L${P(cx, cy, r, e)} A${r},${r} 0 ${big} 0 ${P(cx, cy, r, s)} Z`;
-  }
+  /* ---------- Donas redondas: las rebanadas crecen como ola y ondulan ---------- */
   function donut(svg) {
     if (svg._lq) return; svg._lq = 1;
-    const cx = +svg.dataset.cx, cy = +svg.dataset.cy, R = +svg.dataset.r1, r = +svg.dataset.r0;
+    const cx = +svg.dataset.cx, cy = +svg.dataset.cy, R = +svg.dataset.rm, W = +svg.dataset.w;
     const sl = [...svg.querySelectorAll('path[data-s]')].map((p, i) => ({ p, s: +p.dataset.s, e: +p.dataset.e, g: new Spring(0, 90, 7.5), h: new Spring(0, 260, 11), i }));
     if (!sl.length) return;
     const sweep = new Spring(0, 55, 12); sweep.to = 1;
-    const base = sl[0].s;
+    const base = -Math.PI / 2;
     const draw = () => sl.forEach(o => {
       const a = Math.min(1, Math.max(0, sweep.x)); const s = base + (o.s - base) * a, e = base + (o.e - base) * a;
-      const th = (R - r) * Math.max(0, o.g.x); o.p.setAttribute('d', arc(cx, cy, r + th + o.h.x, r - Math.max(0, o.h.x) * .25, s, e));
+      o.p.setAttribute('d', arcLine(cx, cy, R, s, Math.max(s, e))); o.p.setAttribute('stroke-width', Math.max(0, W * o.g.x + o.h.x).toFixed(2));
     });
-    sl.forEach(o => { o.g.to = 1; o.g.v = 0; });
+    sl.forEach(o => { o.g.to = 1; });
     const job = { el: svg, run: dt => { let on = sweep.step(dt); sl.forEach(o => { if (sweep.x > o.i / (sl.length + 1) * .6) on = o.g.step(dt) || on; on = o.h.step(dt) || on; }); draw(); return on; },
       settle: () => { sweep.settle(); sl.forEach(o => { o.g.to = 1; o.g.settle(); o.h.to = 0; o.h.settle(); }); draw(); } };
     const wake = () => { if (!jobs.has(job)) add(job); };
     draw(); add(job);
     sl.forEach(o => {
-      o.p.addEventListener('pointerenter', () => { o.h.to = 7; sl.forEach(n => { if (n !== o) { n.h.to = -1.5; } }); wake(); });
+      o.p.addEventListener('pointerenter', () => { o.h.to = 7; sl.forEach(n => { if (n !== o) n.h.to = -3; }); wake(); });
       o.p.addEventListener('pointerleave', () => { sl.forEach(n => { n.h.to = 0; }); wake(); });
     });
-    // al tocar: una ola recorre la dona
     svg.addEventListener('pointerdown', () => { sl.forEach(o => { setTimeout(() => { o.g.v += 3.2; wake(); }, o.i * 55); }); });
   }
-
+  /* ---------- Anillos: se cierran con vaivén, uno tras otro ---------- */
+  function rings(svg) {
+    if (svg._lq) return; svg._lq = 1;
+    [...svg.querySelectorAll('.rg-fill')].forEach((c, i) => {
+      const L = +c.dataset.len, sp = new Spring(0, 70, 8); sp.to = +c.dataset.v;
+      const put = () => { c.style.strokeDasharray = `${(Math.max(0, sp.x) * L).toFixed(1)} ${L * 2}`; };
+      const job = { el: c, delay: i * .09, run: dt => { const a = sp.step(dt); put(); return a; }, settle: () => { sp.settle(); put(); } };
+      put(); add(job);
+      c.addEventListener('pointerenter', () => { sp.v += .9; if (!jobs.has(job)) { job.delay = 0; add(job); } });
+    });
+  }
   /* ---------- Barras SVG: suben con oleaje y se agitan al pasar ---------- */
   function svgBars(svg) {
     if (svg._lq) return; svg._lq = 1;
@@ -74,14 +77,31 @@ const Liquid = (() => {
     const put = () => g.forEach(el => { el.style.transform = `scaleY(${Math.max(0, sp.x).toFixed(3)})`; });
     put(); add({ el: svg, run: dt => { const a = sp.step(dt); put(); return a; }, settle: () => { sp.settle(); g.forEach(el => { el.style.transform = ''; }); } });
   }
-  /* ---------- Barras HTML (medidores): se llenan y chapotean ---------- */
-  const BAR_SEL = '.bar i, .qz-meter i, .mine-bar i, .fl-stack i, .hb-fill, .lq-bar';
+  /* ---------- Barras HTML (medidores): se llenan como carga y chapotean al final ---------- */
+  const BAR_SEL = '.meter i, .bar i, .qz-meter i, .mine-bar i, .fl-stack i, .hb-fill, .lq-bar';
   function htmlBar(el, i) {
     if (el._lq) return; el._lq = 1;
-    el.style.transformOrigin = '0 50%';
-    const sp = new Spring(0, 95, 7.5); sp.to = 1;
-    const put = () => { el.style.transform = `scaleX(${Math.max(0, sp.x).toFixed(3)})`; };
-    put(); add({ el, delay: Math.min(i, 14) * .03, run: dt => { const a = sp.step(dt); put(); return a; }, settle: () => { sp.settle(); el.style.transform = ''; } });
+    const w = el.style.width; const m = /^([\d.]+)%$/.exec(w || ''); const flex = el.style.flex;
+    if (m) {
+      const to = +m[1]; const sp = new Spring(0, 85, 9); sp.to = to;
+      const put = () => { el.style.width = `${Math.max(0, sp.x).toFixed(2)}%`; };
+      put(); add({ el, delay: Math.min(i, 14) * .03, run: dt => { const a = sp.step(dt); put(); return a; }, settle: () => { sp.settle(); el.style.width = w; } });
+    } else {
+      el.style.transformOrigin = '0 50%'; const sp = new Spring(0, 95, 7.5); sp.to = 1;
+      const put = () => { el.style.transform = `scaleX(${Math.max(0, sp.x).toFixed(3)})`; };
+      put(); add({ el, delay: Math.min(i, 14) * .03, run: dt => { const a = sp.step(dt); put(); return a; }, settle: () => { sp.settle(); el.style.transform = ''; } });
+    }
+  }
+  /* ---------- Cifras: cuentan rápido hasta su valor ---------- */
+  const NUM_SEL = '.hero .big, .mine-big, .stat .v, .ledger b.num, .gauge .g-c b, .rings .c b, .donut .c b, .fl-big, .cs-tile b, .mine-row > b.num, .fl-part-big, .meter-l span';
+  function countUp(el) {
+    if (el._lqn || el.children.length) return; const txt = el.textContent;
+    const m = /^(.*?)(\d[\d,]*(?:\.\d+)?)(.*)$/s.exec(txt); if (!m) return; el._lqn = 1;
+    const val = parseFloat(m[2].replace(/,/g, '')); if (!val) return; const dec = (m[2].split('.')[1] || '').length;
+    const fmt = v => m[1] + v.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec }) + m[3];
+    const t0 = performance.now(), D = 700;
+    const job = { el, run: () => { const k = Math.min(1, (performance.now() - t0) / D); const e = 1 - Math.pow(1 - k, 3); el.textContent = fmt(val * e); return k < 1; }, settle: () => { el.textContent = txt; } };
+    el.textContent = fmt(0); add(job);
   }
   /* ---------- Recuadros: gelatina al tocar, onda suave al pasar ---------- */
   const JELLY = '.stat, .cs-tile, .fl-part, .mine-row, .addopt, .ledger, .gauge-c, .hb-row, .cs-row, .bud, .pet-opt, .chartc .donut';
@@ -104,9 +124,11 @@ const Liquid = (() => {
   }
 
   /* Al pintar una vista: todo lo nuevo entra con oleaje */
-  function enter(root) {
+  function enter(root, fresh = true) {
     bindGlobal();
-    if (reduce() || !root) return;
+    if (reduce() || !root || !fresh) return;
+    root.querySelectorAll(NUM_SEL).forEach(countUp);
+    root.querySelectorAll('svg[data-lq=rings]').forEach(rings);
     root.querySelectorAll('svg[data-lq=donut]').forEach(donut);
     root.querySelectorAll('svg[data-lq=bars]').forEach(svgBars);
     root.querySelectorAll('svg[data-lq=lines]').forEach(lines);
@@ -128,5 +150,5 @@ const Liquid = (() => {
     const sp = new Spring(0, 220, 7); sp.v = -10 * amt;
     add({ el, run: dt => { const a = sp.step(dt); el.style.transform = `translateY(${(sp.x * 6).toFixed(2)}px) scale(${(1 - sp.x * .06).toFixed(3)},${(1 + sp.x * .06).toFixed(3)})`; return a; }, settle: () => { el.style.transform = ''; } });
   }
-  return { enter, settle, jelly, boing, Spring, arc };
+  return { enter, settle, jelly, boing, Spring };
 })();
