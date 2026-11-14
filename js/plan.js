@@ -143,3 +143,116 @@ function bindFreelance(root) {
     }, 'Sí, registrar');
   });
 }
+
+/* ---------- Disponible para ti: lo que sobra del sueldo tras tus gastos + lo libre de freelance ---------- */
+function disponibleParaTi(ym) {
+  const flIds = new Set(flCats().map(c => c.id));
+  const T = S.data.transactions.filter(t => inMonth(t, ym));
+  const sueldo = sum(T.filter(t => t.type === 'ingreso' && !flIds.has(t.categoryId)));
+  const q = S.data.quincenas; const B = S.data.budgets || {};
+  const planned = (q && q.income && q.income.length === 2) || Object.keys(B).length ? sum(qIncome(), v => v) : 0;
+  const base = sueldo || planned;
+  // gastos del mes sin contar los pagados con freelance (esos salen de la parte freelance)
+  const byCat = { ...monthSummary(ym).byCat };
+  T.filter(t => t.type === 'gasto' && t.fromFreelance).forEach(t => { const k = t.categoryId || 'otros'; byCat[k] = (byCat[k] || 0) - t.amount; });
+  let plan = 0, extra = 0;
+  Object.entries(B).forEach(([id, b]) => { if (b > 0) { plan += b; extra += Math.max(0, (byCat[id] || 0) - b); } });
+  Object.entries(byCat).forEach(([id, v]) => { if (!(B[id] > 0) && v > 0) extra += v; });
+  const goal = S.data.savingsGoal || 0;
+  const saved = sum(T.filter(t => t.type === 'ahorro' && !t.fromFreelance && !t.fromTx && !/^Ahorro de /.test(t.desc || '')));
+  plan += goal; extra += Math.max(0, saved - goal);
+  const sobrante = base - plan - extra;
+  const F = freelanceData(ym); const flLibre = F.tot.mine - F.used.mine;
+  return { base, real: !!sueldo, plan, extra, sobrante, flTot: F.tot.mine, flUsed: F.used.mine, flLibre, hasFl: flCats().length > 0, total: sobrante + flLibre };
+}
+function disponibleHTML(ym) {
+  const D = disponibleParaTi(ym); if (!D.base && !D.flTot) return '';
+  const neg = D.total < 0; const a = Math.max(0, D.sobrante), b = Math.max(0, D.flLibre);
+  return `<section class="card mine${neg ? ' over' : ''}" aria-label="Disponible para ti">
+    <div class="mine-l">
+      <div class="eyebrow">${icon('sparkle')}${neg ? 'Te faltan para ti' : 'Disponible para ti'}</div>
+      <div class="mine-big num">${neg ? '−' : ''}${money2(Math.abs(D.total))}</div>
+      <p>${neg ? 'Tus gastos y apartados superan lo que entra. Revisa el presupuesto.' : 'Lo que te sobra del sueldo después de tus gastos y ahorro, más lo libre de tus trabajos freelance. Es tuyo para gastar sin culpa.'}</p>
+      ${a + b > 0 ? `<div class="mine-bar">${a ? `<i class="s" style="flex:${a}"></i>` : ''}${b ? `<i class="f" style="flex:${b}"></i>` : ''}</div>` : ''}
+    </div>
+    <div class="mine-r">
+      <div class="mine-row"><span class="dot s"></span><div class="mine-t"><b>Sobrante del sueldo</b><small>${D.real ? 'Entró' : 'Planeado'} ${money2(D.base)} − plan ${money2(D.plan)}${D.extra ? ` − fuera de plan ${money2(D.extra)}` : ''}</small></div><b class="num${D.sobrante < 0 ? ' neg' : ''}">${D.sobrante < 0 ? '−' : ''}${money2(Math.abs(D.sobrante))}</b></div>
+      <div class="mine-row"><span class="dot f"></span><div class="mine-t"><b>Freelance para ti</b><small>${D.hasFl ? (D.flTot ? `De ${money2(D.flTot)} · ya usaste ${money2(D.flUsed)}` : 'Sin ingresos freelance este mes') : 'Carga tu plan para separar el freelance'}</small></div><b class="num${D.flLibre < 0 ? ' neg' : ''}">${D.flLibre < 0 ? '−' : ''}${money2(Math.abs(D.flLibre))}</b></div>
+      <button class="lnk" data-go="presupuesto">Ver presupuesto</button>
+    </div>
+  </section>`;
+}
+
+/* ---------- Con tarjeta: servicios cargados a una tarjeta con dinero que ya pagaste ---------- */
+const csList = () => S.data.cardServices || (S.data.cardServices = []);
+const csPaid = (ym = S.month) => { const P = S.data.cardServicesPaid || (S.data.cardServicesPaid = {}); return P[ym] || (P[ym] = {}); };
+function cardSvcHTML() {
+  const ym = S.month; const L = csList(); const P = csPaid(ym); const pays = qPayOpts();
+  const addBtn = `<button class="btn primary" data-cs-add>${icon('plus')}<span>Agregar servicio</span></button>`;
+  const intro = `<div class="card cs-intro"><div class="cs-ic">${icon('card')}</div><div><h2>Servicios pagados con tarjeta</h2><p>Para lo que cargas a una tarjeta con dinero que <b>ya pagaste</b> (por ejemplo, servicios dentro de tu pago de Vexi). Marcarlos como pagados <b>no crea movimientos</b>: no cambia lo que te queda, ni el presupuesto, ni la deuda de la tarjeta.</p></div>${L.length ? addBtn : ''}</div>`;
+  if (!L.length) return `<section class="cs">${intro}<div class="card"><div class="empty"><h3>Aún no tienes servicios con tarjeta</h3><p>Agrega, por ejemplo, los dos servicios de ${money0(199)} y ${money0(99)} que pagas con tu Vexi.</p>${addBtn}</div></div></section>`;
+  const total = sum(L, s => s.amount), paid = L.filter(s => P[s.id]), affect = L.filter(s => s.covered === false);
+  const groups = [...new Set(L.map(s => s.cardId || ''))].map(id => ({ id, opt: pays.find(p => p.id === id), items: L.filter(s => (s.cardId || '') === id).sort((a, b) => (a.day || 99) - (b.day || 99)) }));
+  return `<section class="cs">${intro}
+    <div class="cs-tiles">
+      <div class="cs-tile"><span>Total al mes</span><b class="num">${money2(total)}</b><small>${L.length} servicio${L.length === 1 ? '' : 's'}</small></div>
+      <div class="cs-tile ok"><span>Pagados en ${MESES[+ym.slice(5) - 1]}</span><b class="num">${paid.length} de ${L.length}</b><small>${money2(sum(paid, s => s.amount))}</small></div>
+      <div class="cs-tile"><span>Afectan tus finanzas</span><b class="num">${money2(sum(affect, s => s.amount))}</b><small>${affect.length ? `${affect.length} se registra${affect.length === 1 ? '' : 'n'} como gasto` : 'Ninguno · todo cubierto'}</small></div>
+    </div>
+    ${groups.map(g => { const c = g.opt ? g.opt.color : col('#8D8481'); const gp = g.items.filter(s => P[s.id]).length;
+      return `<div class="card cs-g" style="--cc:${c}"><div class="cs-gh"><span class="cs-chip">${icon('card')}</span><div><b>${g.opt ? esc(g.opt.name) : 'Sin tarjeta'}</b><small>${g.opt ? g.opt.kind + ' · ' : ''}${gp} de ${g.items.length} pagado${g.items.length === 1 ? '' : 's'}</small></div><b class="num">${money2(sum(g.items, s => s.amount))}<small>/mes</small></b></div>
+        ${g.items.map(s => { const on = !!P[s.id]; return `<div class="cs-row${on ? ' done' : ''}">
+          <label class="cs-chk" title="Marcar ${esc(s.name)} como pagado en ${monthLabel(ym)}"><input type="checkbox" data-cs-paid="${s.id}"${on ? ' checked' : ''}><i>${icon('check')}</i></label>
+          <div class="cs-m"><b>${esc(s.name)}</b><small>${s.day ? `<span>Día ${s.day}</span>` : ''}${s.covered === false ? '<span class="cs-badge aff">Se registra como gasto</span>' : '<span class="cs-badge">Cubierto · no afecta</span>'}</small></div>
+          <b class="num cs-v">${money2(s.amount)}</b>
+          <button class="ib" data-cs-edit="${s.id}" title="Editar" aria-label="Editar ${esc(s.name)}">${icon('edit')}</button></div>`; }).join('')}</div>`; }).join('')}
+  </section>`;
+}
+function formCardSvc(s) {
+  const v = { covered: true, amount: '', day: '', name: '', cardId: (S.data.cards[0] || {}).id || '', ...(s || {}) };
+  const opts = qPayOpts().map(p => [p.id, `${p.name} · ${p.kind}`]);
+  const body = `${F.text('name', 'Servicio', v.name, 'Ej. Spotify, iCloud, Plan de celular', 'required maxlength="40"')}<div class="fr">${F.num('amount', 'Monto al mes', v.amount, '199', 'required min="0"')}${F.num('day', 'Día de cargo', v.day, '5', 'min="1" max="31"')}</div>
+    ${F.sel('cardId', 'Tarjeta o cuenta', opts.length ? opts : [['', 'Agrega una tarjeta en Ajustes']], v.cardId)}
+    <label class="toggle"><input type="checkbox" name="covered"${v.covered !== false ? ' checked' : ''}><span>Ya está pagado con dinero que aparté · no afecta mis finanzas</span></label>
+    <div class="hint">Si lo desactivas, al marcarlo como pagado te pregunto si lo registro como gasto con esa tarjeta.</div>`;
+  openDrawer({ title: s ? 'Editar servicio' : 'Nuevo servicio con tarjeta', eyebrow: 'Presupuesto · Con tarjeta', body, saveLabel: 'Guardar',
+    onSave: (o, f) => {
+      if (!need(f, (o.name || '').trim(), 'Escribe el nombre del servicio')) return;
+      if (!need(f, o.amount > 0, 'Escribe un monto')) return;
+      const day = Math.min(31, Math.max(0, Math.round(+o.day || 0)));
+      const it = { id: s ? s.id : uid(), name: o.name.trim(), amount: +o.amount, cardId: o.cardId || '', day: day || null, covered: !!o.covered };
+      const L = csList(); const i = L.findIndex(x => x.id === it.id); if (i >= 0) L[i] = it; else L.push(it);
+      saveData(); closeDrawer(); render(); toast(s ? 'Servicio actualizado' : 'Servicio agregado');
+    },
+    onDelete: s ? () => { S.data.cardServices = csList().filter(x => x.id !== s.id); Object.values(S.data.cardServicesPaid || {}).forEach(m => delete m[s.id]); saveData(); closeDrawer(); render(); toast('Servicio eliminado'); } : null, deleteLabel: 'Eliminar servicio' });
+}
+function csTx(s, ym) {
+  const card = byId(S.data.cards, s.cardId), acc = byId(S.data.accounts, s.cardId); if (!card && !acc) return null;
+  const today = todayISO(); const date = today.slice(0, 7) === ym ? today : clampDay(ym, s.day || 1);
+  const catId = byId(S.data.categories, 'suscripciones') ? 'suscripciones' : null;
+  return { id: uid(), type: 'gasto', amount: s.amount, date, desc: s.name, categoryId: catId, accountId: (card || acc).id, method: card ? 'credito' : (acc.type === 'efectivo' ? 'efectivo' : 'debito'), fixed: true, targetId: null, notes: 'Servicio con tarjeta' };
+}
+function bindCardSvc(root) {
+  const box = root.querySelector('.cs'); if (!box) return;
+  const refresh = () => { const y = scrollY; render(); window.scrollTo(0, y); };
+  box.querySelectorAll('[data-cs-add]').forEach(b => b.addEventListener('click', () => formCardSvc(null)));
+  box.querySelectorAll('[data-cs-edit]').forEach(b => b.addEventListener('click', () => formCardSvc(byId(csList(), b.dataset.csEdit))));
+  box.querySelectorAll('[data-cs-paid]').forEach(ck => ck.addEventListener('change', () => {
+    const ym = S.month; const P = csPaid(ym); const s = byId(csList(), ck.dataset.csPaid); if (!s) return;
+    if (ck.checked) {
+      if (s.covered !== false) { P[s.id] = true; saveData(); refresh(); toast(`${s.name}: pagado · no afecta tus finanzas`); return; }
+      const tx = csTx(s, ym); ck.checked = false;
+      const btns = []; if (tx) btns.push({ label: `${icon('plus')}Sí, registrar gasto de ${money2(s.amount)}`, cls: 'primary', fn: () => { S.data.transactions.push(tx); P[s.id] = tx.id; saveData(); refresh(); toast(`${s.name}: pagado y registrado`); } });
+      btns.push({ label: `${icon('check')}Solo marcar como pagado`, cls: tx ? 'quiet' : 'primary', fn: () => { P[s.id] = true; saveData(); refresh(); } });
+      choiceBox(`¿Marcar ${s.name} como pagado?`, `Este servicio <b>sí afecta tus finanzas</b>. ¿Lo registro como gasto con la tarjeta?`, btns);
+    } else {
+      const t = typeof P[s.id] === 'string' ? byId(S.data.transactions, P[s.id]) : null;
+      if (!t) { delete P[s.id]; saveData(); refresh(); return; }
+      ck.checked = true;
+      choiceBox(`¿Desmarcar ${s.name}?`, `Al marcarlo se registró un gasto de <b>${money2(t.amount)}</b>.`, [
+        { label: `${icon('trash')}Desmarcar y borrar el gasto`, cls: 'danger', fn: () => { S.data.transactions = S.data.transactions.filter(x => x.id !== t.id); delete P[s.id]; saveData(); refresh(); } },
+        { label: 'Solo desmarcar (conservar el gasto)', cls: 'quiet', fn: () => { delete P[s.id]; saveData(); refresh(); } },
+      ]);
+    }
+  }));
+}

@@ -56,6 +56,7 @@ function viewInicio() {
       <div class="ledger"><span>${icon('piggy')}Ahorré este mes</span><b class="num">${money2(s.ahorro)}</b><small>${S.data.savingsGoal ? `Meta ${money2(S.data.savingsGoal)} · llevas ${pct(Math.min(100, s.ahorro / S.data.savingsGoal * 100))}` : `${pct(s.ahorroPct)} de lo que entró`}</small></div>
     </div>
   </section>
+  ${disponibleHTML(ym)}
   <section class="quickgrid" aria-label="Registrar">${ADD_OPTS.slice(0, 4).map(([act, tt, sub, ic, tone]) => `<button class="addopt" data-act="${act}" style="--tone:var(--${tone})"><span class="blob">${icon(ic)}</span><b>${tt}</b><small>${sub}</small></button>`).join('')}<button class="addopt more" data-act="add"><span class="blob">${icon('more')}</span><b>Otra cosa</b><small>Ahorro, transferencia…</small></button></section>
   <section class="stats g4">
     <div class="stat pos"><div class="lb"><i></i>Ingresos</div><div class="v num">${money2(s.ingresos)}</div><div class="s">${s.count ? 'recibidos este mes' : 'sin movimientos'}</div></div>
@@ -352,6 +353,7 @@ function qTogglePaid(ck, paint) {
 function bindQuincenas(root) {
   root.querySelectorAll('[data-btab]').forEach(t => t.addEventListener('click', () => { S.budTab = t.dataset.btab; try { localStorage.setItem('rawmoney.budtab', S.budTab); } catch (e) {} render(); }));
   bindFreelance(root);
+  bindCardSvc(root);
   root.querySelectorAll('[data-unbudget]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); removeBudget(b.dataset.unbudget); }));
   const box = root.querySelector('#qz'); if (!box) return;
   const q = qState(); const pays = qPayOpts();
@@ -432,10 +434,11 @@ function viewPresupuesto() {
     <div class="acts"><button class="btn" data-act="plan">${icon('sparkle')}<span>Cargar mi plan</span></button><button class="btn primary" data-act="new-budget">${icon('plus')}<span>Nuevo concepto</span></button></div></div>
   <div class="vtabs" role="tablist" aria-label="Vista del presupuesto">
     <button role="tab" data-btab="mes" aria-selected="${tab === 'mes'}" class="${tab === 'mes' ? 'on' : ''}">${icon('target')}<span>Mensual</span></button>
-    <button role="tab" data-btab="quincena" aria-selected="${tab === 'quincena'}" class="${tab === 'quincena' ? 'on' : ''}">${icon('cal')}<span>Por quincena</span></button>
+    <button role="tab" data-btab="quincena" aria-selected="${tab === 'quincena'}" class="${tab === 'quincena' ? 'on' : ''}">${icon('cal')}<span class="lg">Por quincena</span><span class="sh">Quincena</span></button>
     <button role="tab" data-btab="freelance" aria-selected="${tab === 'freelance'}" class="${tab === 'freelance' ? 'on' : ''}">${icon('briefcase')}<span>Freelance</span></button>
+    <button role="tab" data-btab="tarjeta" aria-selected="${tab === 'tarjeta'}" class="${tab === 'tarjeta' ? 'on' : ''}">${icon('card')}<span class="lg">Con tarjeta</span><span class="sh">Tarjeta</span></button>
   </div>
-  ${tab === 'freelance' ? freelanceHTML() : tab === 'quincena' ? (quincenasHTML(bs) || '<div class="card"><div class="empty"><h3>Aún no hay conceptos</h3><p>Agrega conceptos con monto en la pestaña Mensual y aquí se reparten por quincena.</p></div></div>') : `
+  ${tab === 'tarjeta' ? cardSvcHTML() : tab === 'freelance' ? freelanceHTML() : tab === 'quincena' ? (quincenasHTML(bs) || '<div class="card"><div class="empty"><h3>Aún no hay conceptos</h3><p>Agrega conceptos con monto en la pestaña Mensual y aquí se reparten por quincena.</p></div></div>') : `
   <section class="g23">
     <div class="card">${bs.length ? budGrouped(bs).map(b => b.head ? `<div class="bud-g"><span>${esc(b.head)}</span><div class="bud-g-n"><b class="num">${money0(b.spent)}</b><small>de ${money0(b.total)}</small></div></div>` : `<div class="bud${b.over ? ' over' : ''}">
       <div class="h">${catIcon(b.cat)}<div class="nm"><b>${esc(b.cat.name)}</b><small>Gastado <em>${money0(b.spent)}</em> de ${money0(b.budget)}</small></div>

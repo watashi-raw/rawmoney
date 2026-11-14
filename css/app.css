@@ -1266,3 +1266,66 @@ body{background-color:var(--bg);background-image:var(--grain);background-size:18
 .qz-cc:not(.credit) .qz-ccp-box{border-color:var(--line-strong);background:var(--surface)}
 .qz-ccp.on .qz-ccp-box{background:var(--good);border-color:var(--good)}
 .qz-cc.credit .qz-ccp:not(.on){background:rgba(255,255,255,.82);color:#2a1a26}.qz-cc.credit .qz-ccp small{opacity:.8}
+
+/* Inicio: Disponible para ti */
+.mine{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:22px;align-items:center;margin-bottom:18px;background:linear-gradient(135deg,color-mix(in srgb,#9B669A 16%,var(--surface)),color-mix(in srgb,#2D8F73 12%,var(--surface)))}
+.mine .eyebrow{display:flex;align-items:center;gap:6px}.mine .eyebrow .i{width:15px;height:15px;color:var(--berry)}
+.mine-big{font-family:var(--display);font-style:italic;font-size:54px;line-height:1.05;color:var(--ink);margin:4px 0 6px}
+.mine.over .mine-big{color:var(--bad)}
+.mine-l p{margin:0;color:var(--ink-2);font-size:13.5px;line-height:1.5;max-width:46ch}
+.mine-bar{display:flex;gap:3px;height:12px;margin-top:14px;border-radius:99px;overflow:hidden;border:1.5px solid var(--edge)}
+.mine-bar i{display:block}.mine-bar .s{background:#2D8F73}.mine-bar .f{background:#9B669A}
+.mine-r{display:flex;flex-direction:column;gap:10px}
+.mine-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;padding:12px 14px;border-radius:14px;background:var(--surface);border:1.5px solid var(--edge);box-shadow:3px 3px 0 var(--hard)}
+.mine-row b{color:var(--ink);font-size:14px}.mine-row small{display:block;color:var(--ink-3);font-size:12px;margin-top:2px}
+.mine-row>b.num{font-size:18px;white-space:nowrap}.mine-row>b.neg{color:var(--bad)}
+.mine-row .dot{width:12px;height:12px;border-radius:50%}.mine-row .dot.s{background:#2D8F73}.mine-row .dot.f{background:#9B669A}
+.mine-r .lnk{align-self:flex-end}
+@media (max-width:900px){.mine{grid-template-columns:1fr}}
+@media (max-width:640px){.mine-big{font-size:42px}.mine-row{padding:10px 12px;gap:10px}.mine-row>b.num{font-size:16px}}
+
+/* Presupuesto: pestaña Con tarjeta */
+.vtabs .sh{display:none}
+@media (max-width:640px){.vtabs .lg{display:none}.vtabs .sh{display:inline}.vtabs button{flex-direction:column;gap:3px;font-size:12px;padding:8px 4px}}
+.cs{display:flex;flex-direction:column;gap:16px}
+.cs-intro{display:flex;gap:16px;align-items:flex-start;background:linear-gradient(140deg,color-mix(in srgb,#3884B0 16%,var(--surface)),var(--surface) 70%)}
+.cs-intro h2{margin:0 0 6px;font-family:var(--display);font-style:italic;font-weight:400;font-size:28px;color:var(--ink)}
+.cs-intro p{margin:0;color:var(--ink-2);font-size:13.5px;line-height:1.55;max-width:62ch}
+.cs-intro>div:nth-child(2){flex:1;min-width:0}.cs-intro .btn{flex:none}
+.cs-ic{flex:none;width:52px;height:52px;border-radius:16px;display:grid;place-items:center;background:#3884B0;color:#fff;box-shadow:3px 3px 0 var(--hard)}.cs-ic .i{width:26px;height:26px}
+.cs-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.cs-tile{display:flex;flex-direction:column;gap:3px;padding:14px 16px;border-radius:16px;border:1.5px solid var(--edge);background:var(--surface);box-shadow:3px 3px 0 var(--hard)}
+.cs-tile span{font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);font-weight:700}
+.cs-tile b{font-size:22px;color:var(--ink)}.cs-tile small{color:var(--ink-3);font-size:12px}
+.cs-tile.ok{background:color-mix(in srgb,var(--good) 12%,var(--surface))}.cs-tile.ok b{color:var(--good)}
+.cs-g{padding:0;overflow:hidden;border-top:6px solid var(--cc)}
+.cs-gh{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;padding:14px 16px;background:color-mix(in srgb,var(--cc) 14%,var(--surface));border-bottom:1.5px solid var(--line)}
+.cs-gh b{color:var(--ink);font-size:16px}.cs-gh small{display:block;color:var(--ink-3);font-size:12px;margin-top:2px}
+.cs-gh>b.num{font-size:20px;white-space:nowrap}.cs-gh>b.num small{display:inline;font-size:12px;margin-left:2px}
+.cs-chip{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;background:var(--cc);color:#fff;box-shadow:2px 2px 0 var(--hard)}.cs-chip .i{width:20px;height:20px}
+.cs-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;gap:12px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line);transition:background .2s}
+.cs-row:last-child{border-bottom:0}
+.cs-row.done{background:color-mix(in srgb,var(--good) 8%,var(--surface))}
+.cs-row.done .cs-m>b,.cs-row.done .cs-v{color:var(--ink-3);text-decoration:line-through;text-decoration-thickness:1.5px}
+.cs-m b{display:block;color:var(--ink);font-size:14.5px}.cs-m small{display:flex;flex-wrap:wrap;align-items:center;gap:6px;color:var(--ink-3);font-size:12px;margin-top:3px}
+.cs-v{font-size:17px;color:var(--ink);white-space:nowrap}
+.cs-badge{display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:700;background:color-mix(in srgb,#3884B0 16%,var(--surface));color:#2A6A90;border:1px solid color-mix(in srgb,#3884B0 40%,transparent)}
+.cs-badge.aff{background:var(--bad-soft);color:var(--bad);border-color:color-mix(in srgb,var(--bad) 40%,transparent)}
+.cs-chk{position:relative;display:grid;place-items:center;cursor:pointer}
+.cs-chk input{position:absolute;opacity:0;width:100%;height:100%;margin:0;cursor:pointer}
+.cs-chk i{width:24px;height:24px;border-radius:8px;border:1.8px solid var(--line-strong);background:var(--surface);display:grid;place-items:center;color:transparent;transition:background .2s,border-color .2s,color .2s}
+.cs-chk i .i{width:15px;height:15px;stroke-width:3}
+.cs-chk:hover i{border-color:var(--good)}
+.cs-chk input:checked+i{background:var(--good);border-color:var(--good);color:#fff}
+.cs-chk input:focus-visible+i{outline:2px solid var(--berry);outline-offset:2px}
+@media (max-width:640px){
+  .cs-intro{flex-wrap:wrap}.cs-intro .btn{width:100%;justify-content:center}.cs-intro h2{font-size:24px}
+  .cs-tiles{grid-template-columns:1fr 1fr}.cs-tiles .cs-tile:first-child{grid-column:1/-1}
+  .cs-row{gap:10px;padding:12px}.cs-v{font-size:15px}
+}
+.cs-g{gap:0}
+.cs-badge{white-space:nowrap}
+@media (max-width:640px){
+  .mine-row{grid-template-columns:auto minmax(0,1fr) auto;grid-template-areas:"d t v" "s s s";row-gap:4px}
+  .mine-row .dot{grid-area:d}.mine-row .mine-t{display:contents}.mine-row .mine-t>b{grid-area:t}.mine-row .mine-t>small{grid-area:s;margin:0}.mine-row>b.num{grid-area:v}
+}
