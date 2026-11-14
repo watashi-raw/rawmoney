@@ -249,12 +249,13 @@ function quincenasHTML(bs) {
       <div class="ch"><div><h2>Por quincena</h2><p class="qz-sub">Edita el monto del mes o el de cada quincena: la otra se ajusta sola. Elige con qué tarjeta o cuenta pagas cada concepto y marca cuáles son fijos.</p></div><button class="btn quiet sm" data-qreset>${icon('repeat')}Partes iguales</button></div>
       <div class="qz-legend"><span class="l1">1ª · del 1 al 15</span><span class="l2">2ª · del 16 al ${last}</span></div>
       ${[[true, 'Gastos fijos', 'No se pueden recortar: renta, servicios, deudas…', 'shield'], [false, 'Gastos que puedes ajustar', 'De aquí sale el recorte si no cuadra', 'scissors']].map(([fx, t, sub, ic]) => `<div class="qz-sec ${fx ? 'fixed' : 'flex'}" data-sec="${fx ? 'fixed' : 'flex'}">
-        <div class="qz-sec-h"><span class="qz-sec-ic">${icon(ic)}</span><div><b>${t}</b><small>${sub}</small></div><div class="qz-sec-t"><span><em>Mes</em><b data-st="m">$0</b></span><span class="t1"><em>1ª</em><b data-st="a">$0</b></span><span class="t2"><em>2ª</em><b data-st="b">$0</b></span></div></div>
+        <div class="qz-sec-h"><span class="qz-sec-ic">${icon(ic)}</span><div><b>${t}</b><small>${sub}</small></div></div>
+        <div class="qz-cols"><span class="c0">Concepto</span><span class="cm"><em>Mes</em><b data-st="m">$0</b></span><span class="ca"><em>1ª<span class="lg"> quincena</span></em><b data-st="a">$0</b></span><span class="cb"><em>2ª<span class="lg"> quincena</span></em><b data-st="b">$0</b></span><span class="cx"></span></div>
         <div class="qz-list">
       ${rows.filter(r => r.fixed === fx).map(r => `<div class="qz-row" data-row="${r.id}" style="--cat:${r.color}">
-        <div class="qz-name"><span class="qz-ic">${icon(r.icon || 'dots')}</span><b>${esc(r.name)}</b><button type="button" class="qz-kind" data-kind="${r.id}" aria-label="Cambiar entre fijo y ajustable">${r.fixed ? `${icon('shield')}Fijo` : `${icon('scissors')}Ajustable`}</button><button type="button" class="qz-del" data-unbudget="${r.id}" aria-label="Quitar ${esc(r.name)}" title="Quitar del presupuesto">${icon('trash')}</button></div>
-        <label class="qz-pay"><span class="qz-dot"></span><select data-pay="${r.id}" aria-label="Con qué pagas ${esc(r.name)}">${opt(r)}</select></label>
-        ${field('fm', 'Mes', 'm', r, r.total)}${field('fa', '1ª<span class="lg"> quincena</span>', 'a', r, r.a)}${field('fb', '2ª<span class="lg"> quincena</span>', 'b', r, r.b)}
+        <div class="qz-name"><span class="qz-ic">${icon(r.icon || 'dots')}</span><div class="qz-nt"><b>${esc(r.name)}</b><label class="qz-pay"><span class="qz-dot"></span><select data-pay="${r.id}" aria-label="Con qué pagas ${esc(r.name)}">${opt(r)}</select><svg class="i qz-caret" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></label></div></div>
+        <div class="qz-acts"><button type="button" class="qz-kind" data-kind="${r.id}" aria-label="Cambiar entre fijo y ajustable" title="Cambiar entre fijo y ajustable">${r.fixed ? `${icon('shield')}<span>Fijo</span>` : `${icon('scissors')}<span>Ajustable</span>`}</button><button type="button" class="qz-del" data-unbudget="${r.id}" aria-label="Quitar ${esc(r.name)}" title="Quitar del presupuesto">${icon('trash')}</button></div>
+        ${field('fm', 'Mes', 'm', r, r.total)}${field('fa', '1ª', 'a', r, r.a)}${field('fb', '2ª', 'b', r, r.b)}
         <div class="qz-split" aria-hidden="true"><i class="sa"></i><i class="sb"></i></div>
       </div>`).join('')}
         <div class="qz-none">Nada aquí todavía. Toca «${fx ? 'Ajustable' : 'Fijo'}» en un concepto para moverlo.</div>
@@ -328,7 +329,7 @@ function bindQuincenas(root) {
     const row = k.closest('[data-row]'); const toFixed = !row.closest('[data-sec=fixed]');
     setFixed(k.dataset.kind, toFixed);
     const list = box.querySelector(`[data-sec=${toFixed ? 'fixed' : 'flex'}] .qz-list`); list.insertBefore(row, list.querySelector('.qz-none'));
-    k.innerHTML = toFixed ? `${icon('shield')}Fijo` : `${icon('scissors')}Ajustable`;
+    k.innerHTML = toFixed ? `${icon('shield')}<span>Fijo</span>` : `${icon('scissors')}<span>Ajustable</span>`;
     row.classList.remove('moved'); void row.offsetWidth; row.classList.add('moved');
     toast(toFixed ? `${row.querySelector('b').textContent} ahora es fijo` : `${row.querySelector('b').textContent} ahora es ajustable`);
     paint();
@@ -350,7 +351,11 @@ function viewPresupuesto() {
   </div>
   ${tab === 'quincena' ? (quincenasHTML(bs) || '<div class="card"><div class="empty"><h3>Aún no hay conceptos</h3><p>Agrega conceptos con monto en la pestaña Mensual y aquí se reparten por quincena.</p></div></div>') : `
   <section class="g23">
-    <div class="card">${bs.length ? budGrouped(bs).map(b => b.head ? `<div class="bud-g"><span>${esc(b.head)}</span><b class="num">${money0(b.total)}</b><small>${money0(b.spent)} gastado</small></div>` : `<div class="bud${b.over ? ' over' : ''}"><div class="h">${catIcon(b.cat)}<div class="nm">${esc(b.cat.name)}<small>Presupuesto ${money0(b.budget)} · ${b.over ? `excedido por ${money0(-b.left)}` : `disponible ${money0(b.left)}`}</small></div><div class="v"><b>${money0(b.spent)}</b><span>${pct(b.pct)} usado</span></div></div><div class="bar ${b.over ? 'b' : b.pct > 85 ? 'w' : 'g'}"><i style="width:${Math.min(100, b.pct)}%"></i></div>${b.over ? `<div class="alert">${icon('alert')}Te pasaste del presupuesto de ${esc(b.cat.name)}</div>` : ''}<div class="bud-acts"><button class="edit" data-budget="${b.cat.id}">${icon('edit')}Editar concepto</button><button class="edit del" data-unbudget="${b.cat.id}">${icon('trash')}Quitar</button></div></div>`).join('') : `<div class="empty"><h3>Sin presupuestos</h3><p>Agrega tus conceptos (renta, súper, café…) con un monto para saber cuánto te queda.</p><button class="btn primary" data-act="new-budget">${icon('plus')}<span>Nuevo concepto</span></button></div>`}</div>
+    <div class="card">${bs.length ? budGrouped(bs).map(b => b.head ? `<div class="bud-g"><span>${esc(b.head)}</span><div class="bud-g-n"><b class="num">${money0(b.spent)}</b><small>de ${money0(b.total)}</small></div></div>` : `<div class="bud${b.over ? ' over' : ''}">
+      <div class="h">${catIcon(b.cat)}<div class="nm"><b>${esc(b.cat.name)}</b><small>Gastado <em>${money0(b.spent)}</em> de ${money0(b.budget)}</small></div>
+        <div class="v"><b class="num">${b.over ? `−${money0(-b.left)}` : money0(b.left)}</b><span>${b.over ? 'te pasaste' : 'disponible'}</span></div>
+        <div class="bud-acts"><button class="ib" data-budget="${b.cat.id}" title="Editar concepto" aria-label="Editar ${esc(b.cat.name)}">${icon('edit')}</button><button class="ib del" data-unbudget="${b.cat.id}" title="Quitar del presupuesto" aria-label="Quitar ${esc(b.cat.name)}">${icon('trash')}</button></div></div>
+      <div class="bud-bar"><div class="bar ${b.over ? 'b' : b.pct > 85 ? 'w' : 'g'}"><i style="width:${Math.min(100, b.pct)}%"></i></div><span>${pct(b.pct)}</span></div></div>`).join('') : `<div class="empty"><h3>Sin presupuestos</h3><p>Agrega tus conceptos (renta, súper, café…) con un monto para saber cuánto te queda.</p><button class="btn primary" data-act="new-budget">${icon('plus')}<span>Nuevo concepto</span></button></div>`}</div>
     <div class="card soft"><div class="ch"><h2>Resumen</h2></div>
       <div class="stat"><div class="lb">Total presupuestado</div><div class="v num">${money0(totalB)}</div><div class="s">${s.ingresos ? `${pct(totalB / s.ingresos * 100)} de tus ingresos del mes` : ''}</div></div>
       <div class="bar thick ${totalS > totalB ? 'b' : 'g'}"><i style="width:${totalB ? Math.min(100, totalS / totalB * 100) : 0}%"></i></div>
