@@ -85,7 +85,7 @@ const isTransCat = id => { const c = byId(S.data.categories, id); return id === 
 function freelanceData(ym) {
   const ids = new Set(flCats().map(c => c.id));
   const T = S.data.transactions.filter(t => inMonth(t, ym));
-  const incomes = T.filter(t => t.type === 'ingreso' && ids.has(t.categoryId)).sort((a, b) => b.date.localeCompare(a.date)).map(t => ({ t, ...flSplit(t) }));
+  const incomes = T.filter(t => t.type === 'ingreso' && !isCardTx(t) && ids.has(t.categoryId)).sort((a, b) => b.date.localeCompare(a.date)).map(t => ({ t, ...flSplit(t) }));
   const savings = T.filter(t => t.type === 'ahorro' && (t.fromFreelance || t.fromTx || /^Ahorro de /.test(t.desc || '')));
   incomes.forEach(i => { i.saved = sum(savings.filter(s => s.fromTx === i.t.id || (!s.fromTx && s.desc === `Ahorro de ${i.t.desc}`))); });
   const spent = T.filter(t => t.type === 'gasto' && t.fromFreelance).sort((a, b) => b.date.localeCompare(a.date));
@@ -169,7 +169,7 @@ function disponibleParaTi(ym) {
   extraA += sum(gNF.filter(t => inQ(t, 'a') && !(B[t.categoryId || 'otros'] > 0)));
   const F = freelanceData(ym);
   const mk = (k, i) => {
-    const real = sum(T.filter(t => t.type === 'ingreso' && !flIds.has(t.categoryId) && inQ(t, k)));
+    const real = sum(T.filter(t => t.type === 'ingreso' && !isCardTx(t) && !flIds.has(t.categoryId) && inQ(t, k)));
     const income = real || planIn[i]; const plan = sum(rows, r => r[k]);
     const extra = k === 'a' ? extraA : extraM - extraA;
     return { k, real: !!real, income, plan, extra, sobrante: income - plan - extra, total: income - plan - extra };
@@ -334,3 +334,63 @@ function cardSvcChartHTML() {
     ${chartCard('Pagado este mes', '', ringsSVG([{ label: 'Pagados', v: tot ? paid / tot : 0, color: col('#2D8F73'), text: `${money0(paid)} de ${money0(tot)}` }, { label: 'Servicios', v: L.length ? L.filter(s => csPaid()[s.id]).length / L.length : 0, color: col('#3884B0'), text: `${L.filter(s => csPaid()[s.id]).length} de ${L.length}` }], pct(tot ? paid / tot * 100 : 0), 'pagado'))}
   </section>`;
 }
+
+/* ---------- Al registrar: cuánto queda del presupuesto (en vivo y al guardar) ---------- */
+function withoutTx(t, fn) { if (!t) return fn(); const all = S.data.transactions; S.data.transactions = all.filter(x => x !== t); try { return fn(); } finally { S.data.transactions = all; } }
+function txImpact(o, t) {
+  return withoutTx(t, () => {
+    const amt = Math.max(0, +o.amount || 0); const ym = (o.date || todayISO()).slice(0, 7); const k = +(o.date || todayISO()).slice(8, 10) <= 15 ? 'a' : 'b';
+    const qn = k === 'a' ? '1ª quincena' : '2ª quincena'; const card = byId(S.data.cards, o.accountId);
+    const R = { blocks: [] };
+    if (o.type === 'gasto') {
+      const c = byId(S.data.categories, o.categoryId); const B = S.data.budgets[o.categoryId] || 0;
+      if (o.fromFreelance && flCats().length) {
+        const F = freelanceData(ym); const trans = isTransCat(o.categoryId);
+        const tot = trans ? F.tot.trans : F.tot.mine, used = trans ? F.used.trans : F.used.mine; const left = tot - used - amt;
+        R.blocks.push({ ic: 'briefcase', title: `Freelance · ${trans ? 'transporte' : 'para ti'}`, total: tot, spent: used, amt, left, msg: left >= 0 ? `Con este gasto te quedan <b>${money2(left)}</b> de tu freelance ${trans ? 'para transporte' : 'para ti'}.` : `Te pasarías por <b>${money2(-left)}</b> de lo que tienes de freelance.` });
+      }
+      if (c && B > 0) {
+        const spent = monthSummary(ym).byCat[o.categoryId] || 0; const left = B - spent - amt;
+        const row = qRows(budgetStatus(ym)).find(r => r.id === o.categoryId);
+        R.blocks.push({ ic: 'target', color: col(c.color), title: `${c.name} · presupuesto ${money0(B)}`, total: B, spent, amt, left,
+          msg: left >= 0 ? `Con este gasto te quedan <b>${money2(left)}</b> de ${esc(c.name)} este mes.` : `Con este gasto te pasas por <b>${money2(-left)}</b> de ${esc(c.name)}.`,
+          sub: row ? `En la ${qn} le tocan ${money0(row[k])}.` : '' });
+        R.toast = left >= 0 ? `Te quedan ${money2(left)} de ${c.name}` : `Te pasaste ${money2(-left)} en ${c.name}`;
+      } else if (c && !o.fromFreelance) {
+        R.blocks.push({ ic: 'alert', title: `${c.name} no tiene presupuesto`, msg: 'Contará como gasto fuera de plan y baja lo que tienes disponible.', add: o.categoryId });
+      }
+      if (card) {
+        const bal = cardBalance(card, ym); const lim = card.limit || 0;
+        if (lim) R.blocks.push({ ic: 'card', title: `${card.name} · línea ${money0(lim)}`, total: lim, spent: bal, spentL: 'Debes', amt, left: lim - bal - amt, msg: `Debes <b>${money2(bal + amt)}</b> con este gasto; te quedan <b>${money2(Math.max(0, lim - bal - amt))}</b> de línea.` });
+      }
+    } else if (o.type === 'ingreso') {
+      if (card) {
+        const bal = cardBalance(card, ym); R.blocks.push({ ic: 'card', title: `Reembolso a ${card.name}`, msg: `Lo que debes baja de <b>${money2(bal)}</b> a <b>${money2(Math.max(0, bal - amt))}</b>. No cuenta como dinero disponible.` });
+      } else if (flCats().some(c => c.id === o.categoryId)) {
+        const sp = flSplit({ amount: amt, categoryId: o.categoryId });
+        R.blocks.push({ ic: 'briefcase', title: 'Ingreso freelance', msg: `Se reparte en <b>${money2(sp.save)}</b> a ahorro, <b>${money2(sp.trans)}</b> a transporte y <b>${money2(sp.mine)}</b> para ti.` });
+        R.toast = `Para ti: ${money2(sp.mine)}`;
+      } else if (Object.keys(S.data.budgets).length) {
+        const D = disponibleParaTi(ym); const Q = D.Q[k === 'a' ? 0 : 1]; const inc = (Q.real ? Q.income : 0) + amt; const after = Q.total - Q.income + inc;
+        R.blocks.push({ ic: 'sparkle', title: `Disponible para ti · ${qn}`, msg: Q.real ? `Pasa de <b>${money2(Q.total)}</b> a <b>${money2(after)}</b>.` : `Con este ingreso (en lugar de los ${money0(Q.income)} planeados) quedan <b>${money2(after)}</b> para ti en la ${qn}.` });
+        R.toast = `Disponible ${qn}: ${money2(after)}`;
+      }
+    } else if (o.type === 'ahorro' && S.data.savingsGoal) {
+      const goal = S.data.savingsGoal; const s = monthSummary(ym).ahorro; const left = goal - s - amt;
+      R.blocks.push({ ic: 'piggy', color: col('#2D8F73'), title: `Meta de ahorro · ${money0(goal)}`, total: goal, spent: s, amt, left, good: true, msg: left > 0 ? `Con este ahorro te faltan <b>${money2(left)}</b> para tu meta.` : `¡Llegas a tu meta${left < 0 ? ` y la pasas por <b>${money2(-left)}</b>` : ''}!` });
+      R.toast = left > 0 ? `Te faltan ${money2(left)} para tu meta` : '¡Meta de ahorro cumplida!';
+    }
+    return R;
+  });
+}
+function txLiveHTML(form, t) {
+  const g = n => form.querySelector(`[name=${n}]`);
+  const o = { type: (form.querySelector('[name=type]:checked') || {}).value, amount: parseFloat(g('amount').value) || 0, categoryId: g('categoryId').value, date: g('date').value, accountId: g('accountId').value, fromFreelance: g('fromFreelance') && g('fromFreelance').checked && !g('fromFreelance').closest('[hidden]') };
+  const R = txImpact(o, t); if (!R.blocks.length) return '';
+  return R.blocks.map(b => { const tot = b.total || 0; const over = !b.good && b.left < 0;
+    const p1 = tot ? Math.min(100, b.spent / tot * 100) : 0, p2 = tot ? Math.max(0, Math.min(100 - p1, b.amt / tot * 100)) : 0;
+    return `<div class="tl${over ? ' over' : ''}${b.good ? ' good' : ''}" style="--tc:${b.color || 'var(--berry)'}"><div class="tl-h">${icon(b.ic)}<b>${esc(b.title)}</b>${tot ? `<em class="num">${over ? '−' : ''}${money2(Math.abs(b.left))}</em>` : ''}</div>
+      ${tot ? `<div class="tl-bar"><i style="width:${p1}%"></i><i class="new" style="width:${p2}%"></i></div><div class="tl-l"><span>${b.spentL || 'Llevas'} ${money0(b.spent)}</span><span>${b.amt ? `+ este ${money0(b.amt)}` : ''}</span></div>` : ''}
+      <p>${b.msg}${b.sub ? ` ${b.sub}` : ''}</p></div>`; }).join('');
+}
+function txAfterNote(o, t) { try { const R = txImpact(o, t); return R.toast ? `Registrado · ${R.toast}` : ''; } catch (e) { return ''; } }

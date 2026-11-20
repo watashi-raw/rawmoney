@@ -174,8 +174,10 @@ function formTx(t, preset = {}) {
     <div class="fr">${F.date('date', 'Fecha', v.date)}${F.text('desc', 'Descripción', v.desc, 'Ej. Súper, Gasolina…', 'required')}</div>
     ${F.sel('categoryId', 'Categoría', catOptsNew(v.type === 'ingreso' ? 'ingreso' : 'gasto'), v.categoryId)}
     ${newCatBox()}
+    <div class="f cc-f" data-f="cc"><label>¿Es con tarjeta de crédito?</label>${F.seg('cc', [['no', 'No, cuenta o efectivo'], ['si', 'Sí, tarjeta de crédito']], (v.method === 'credito' || byId(S.data.cards, v.accountId)) ? 'si' : 'no')}<div class="hint cc-hint"></div></div>
     ${F.sel('method', 'Método de pago', Object.entries(METHODS), v.method)}
-    ${F.combo('accountId', 'Cuenta o tarjeta', 'Si usas tarjeta de crédito, elige la tarjeta y el método “Crédito”.', 'Escribe o elige, ej. BBVA, Efectivo')}
+    ${F.combo('accountId', 'Cuenta o tarjeta', '', 'Escribe o elige, ej. BBVA, Efectivo')}
+    <div class="tx-live" aria-live="polite" hidden></div>
     ${F.combo('targetId', 'Destino', '', 'Escribe o elige…')}
     ${F.toggle('fixed', 'Es un gasto fijo (renta, servicios, mensualidades…)', v.fixed)}
     <label class="toggle ff"><input type="checkbox" name="fromFreelance"${v.fromFreelance ? ' checked' : ''}><span>Lo pagué con dinero de freelance</span></label>
@@ -184,19 +186,21 @@ function formTx(t, preset = {}) {
     onSave: (o, form) => {
       if (!need(form, o.amount > 0, 'Escribe un monto mayor a cero')) return; if (!need(form, o.desc, 'Escribe una descripción')) return;
       if (!need(form, o.accountId, 'Elige la cuenta, o escribe una nueva y guárdala')) return;
-      const isCard = !!byId(S.data.cards, o.accountId);
-      if (o.type === 'gasto' && isCard) o.method = 'credito';
-      if (o.type === 'gasto' && o.method === 'credito' && !isCard) { if (!need(form, false, 'Para pagar con crédito elige una tarjeta')) return; }
-      if (o.type !== 'gasto' && isCard) { if (!need(form, false, 'Elige una cuenta de débito o efectivo')) return; }
+      const isCard = !!byId(S.data.cards, o.accountId); const cc = o.cc === 'si' && ['gasto', 'ingreso'].includes(o.type); delete o.cc;
+      if (cc && !isCard) { if (!need(form, false, S.data.cards.length ? 'Elige la tarjeta de crédito' : 'Primero agrega una tarjeta en la sección Tarjetas')) return; }
+      if (['gasto', 'ingreso'].includes(o.type) && isCard) o.method = 'credito';
+      if (o.type === 'gasto' && o.method === 'credito' && !isCard) o.method = 'debito';
+      if (!['gasto', 'ingreso'].includes(o.type) && isCard) { if (!need(form, false, 'Elige una cuenta de débito o efectivo')) return; }
       if (['transferencia', 'pago_tarjeta', 'pago_deuda'].includes(o.type) && !o.targetId) { if (!need(form, false, 'Elige el destino')) return; }
       if (!['gasto', 'ingreso'].includes(o.type)) o.categoryId = null;
       if (!['gasto', 'ingreso', 'pago_deuda'].includes(o.type)) o.fixed = false;
       if (!['transferencia', 'pago_tarjeta', 'pago_deuda'].includes(o.type)) o.targetId = null;
       if (!['gasto', 'ahorro'].includes(o.type)) o.fromFreelance = false;
       if (o.type === 'pago_deuda') { const d = byId(S.data.debts, o.targetId); if (d && !(d.monthly > 0) && o.fixed) d.monthly = o.amount; }
-      if (o.type === 'ingreso' && o.method === 'credito') o.method = 'transferencia';
-      if (isNew) { S.data.transactions.push({ id: uid(), ...o }); toast(o.type === 'ingreso' ? 'Ingreso registrado' : 'Movimiento registrado'); dispatchEvent(new CustomEvent('rm:tx', { detail: o })); }
-      else { Object.assign(t, o); toast('Cambios guardados'); }
+      if (o.type === 'ingreso' && o.method === 'credito' && !isCard) o.method = 'transferencia';
+      const after = typeof txAfterNote === 'function' ? txAfterNote(o, t) : '';
+      if (isNew) { S.data.transactions.push({ id: uid(), ...o }); toast(after || (o.type === 'ingreso' ? 'Ingreso registrado' : 'Movimiento registrado')); dispatchEvent(new CustomEvent('rm:tx', { detail: o })); }
+      else { Object.assign(t, o); toast(after || 'Cambios guardados'); }
       saveData(); closeDrawer(); render();
       if (isNew && o.type === 'ingreso' && typeof planSplit === 'function') planSplit(o);
     },
@@ -209,17 +213,22 @@ function formTx(t, preset = {}) {
   const sync = () => {
     const type = form.querySelector('[name=type]:checked').value; const method = form.querySelector('[name=method]');
     const show = (n, on) => { const el = form.querySelector(`[data-f="${n}"]`); if (el) el.hidden = !on; };
-    show('categoryId', type === 'gasto' || type === 'ingreso'); if (!(type === 'gasto' || type === 'ingreso')) closeNewCat(); show('method', type === 'gasto');
+    const gi = type === 'gasto' || type === 'ingreso'; const ccOn = gi && (form.querySelector('[name=cc]:checked') || {}).value === 'si';
+    show('categoryId', gi); if (!gi) closeNewCat(); show('cc', gi); show('method', type === 'gasto' && !ccOn);
+    [...method.options].forEach(op => { op.hidden = op.value === 'credito'; }); if (!ccOn && method.value === 'credito') method.value = 'debito';
+    const hint = form.querySelector('.cc-hint'); hint.textContent = !S.data.cards.length && ccOn ? 'Aún no tienes tarjetas: agrégalas en la sección Tarjetas.' : ccOn ? (type === 'ingreso' ? 'Reembolso o saldo a favor en tu tarjeta: baja lo que debes, no cuenta como dinero disponible.' : 'Se suma a lo que debes en la tarjeta; no sale de tus cuentas hoy.') : '';
     show('targetId', ['transferencia', 'pago_tarjeta', 'pago_deuda'].includes(type));
     const ff = form.querySelector('.toggle.ff'); ff.hidden = !(['gasto', 'ahorro'].includes(type) && S.data.categories.some(c => c.split)); ff.querySelector('span').textContent = type === 'ahorro' ? 'Este ahorro viene de un ingreso freelance' : 'Lo pagué con dinero de freelance';
     const tg = form.querySelector('.toggle:not(.ff)'); tg.hidden = !FIXED_LABEL[type]; if (FIXED_LABEL[type]) tg.lastChild.textContent = FIXED_LABEL[type];
-    form.querySelector('label[for=fx-accountId]').textContent = type === 'transferencia' ? 'Desde la cuenta' : type === 'gasto' ? 'Cuenta o tarjeta' : type === 'ingreso' ? 'Cuenta donde entra' : 'Cuenta desde la que pagas';
+    form.querySelector('label[for=fx-accountId]').textContent = type === 'transferencia' ? 'Desde la cuenta' : type === 'gasto' ? 'Cuenta o efectivo' : type === 'ingreso' ? 'Cuenta donde entra' : 'Cuenta desde la que pagas';
     // categorías por tipo
     const cs = form.querySelector('[name=categoryId]'); const kind = type === 'ingreso' ? 'ingreso' : 'gasto';
     if (cs.dataset.kind !== kind) { const cur = cs.value; closeNewCat(); cs.innerHTML = catOptsNew(kind).map(([k, n]) => `<option value="${k}">${esc(n)}</option>`).join(''); cs.dataset.kind = kind; if ([...cs.options].some(o => o.value === cur)) cs.value = cur; else if (kind === 'ingreso') cs.value = 'sueldo'; }
     // cuentas: sólo débito/efectivo salvo gasto
-    const as = form.querySelector('[name=accountId]'); const cur = as.value; const opts = type === 'gasto' ? allAccOpts() : accOpts();
+    const as = form.querySelector('[name=accountId]'); let cur = as.value; const opts = ccOn ? cardOpts() : accOpts();
+    if (!opts.some(o => o[0] === cur)) cur = ccOn ? ((S.data.cards[0] || {}).id || '') : ((S.data.accounts.find(a => method.value === 'efectivo' ? a.type === 'efectivo' : a.type !== 'efectivo') || S.data.accounts[0] || {}).id || '');
     acc.setOpts(opts); acc.set(cur);
+    form.querySelector('label[for=fx-accountId]').textContent = ccOn ? '¿Cuál tarjeta?' : form.querySelector('label[for=fx-accountId]').textContent;
     // destino
     const tcur = form.querySelector('[name=targetId]').value;
     const topts = type === 'transferencia' ? accOpts().filter(o => o[0] !== as.value) : type === 'pago_tarjeta' ? cardOpts() : type === 'pago_deuda' ? S.data.debts.map(d => [d.id, d.name]) : [];
@@ -228,11 +237,17 @@ function formTx(t, preset = {}) {
       : { onCreate: null, noun: 'tarjeta', types: null, extra: null, empty: 'Aún no tienes tarjetas de crédito. Agrégalas en la sección Tarjetas.' });
     dest.setOpts(topts); dest.set(topts.some(o => o[0] === tcur) ? tcur : (topts.length === 1 ? topts[0][0] : ''));
     form.querySelector('label[for=fx-targetId]').textContent = type === 'transferencia' ? 'A la cuenta' : type === 'pago_tarjeta' ? 'Tarjeta que pagas' : 'Deuda que pagas';
-    if (type === 'gasto') { const isCard = !!byId(S.data.cards, as.value); if (isCard) method.value = 'credito'; else if (method.value === 'credito') method.value = 'debito'; }
+    if (ccOn) method.value = 'credito';
+    if (typeof txLiveHTML === 'function') { const box = form.querySelector('.tx-live'); const h = txLiveHTML(form, t); box.innerHTML = h; box.hidden = !h; }
   };
   acc.setOpts(allAccOpts()); acc.set(v.accountId);
   dest.setOpts([...accOpts(), ...cardOpts(), ...S.data.debts.map(d => [d.id, d.name])]); dest.set(v.targetId);
-  form.addEventListener('change', e => { if (['type', 'accountId', 'method'].includes(e.target.name)) { if (e.target.name === 'method' && e.target.value === 'credito' && !byId(S.data.cards, form.querySelector('[name=accountId]').value) && S.data.cards[0]) form.querySelector('[name=accountId]').value = S.data.cards[0].id; sync(); } });
+  form.addEventListener('change', e => {
+    if (!['type', 'accountId', 'method', 'cc', 'categoryId', 'date', 'fromFreelance'].includes(e.target.name)) return;
+    if (e.target.name === 'method' && e.target.value === 'efectivo') { const a = S.data.accounts.find(x => x.type === 'efectivo'); const c = byId(S.data.accounts, form.querySelector('[name=accountId]').value); if (a && c && c.type !== 'efectivo') acc.set(a.id); }
+    sync();
+  });
+  form.addEventListener('input', e => { if (e.target.name === 'amount') { const box = form.querySelector('.tx-live'); const h = typeof txLiveHTML === 'function' ? txLiveHTML(form, t) : ''; box.innerHTML = h; box.hidden = !h; } });
   sync();
 }
 
@@ -312,9 +327,20 @@ function formRecurring(r) {
     ${F.sel('categoryId', 'Categoría', catOpts('gasto'), v.categoryId)}
     <div class="fr">${F.sel('method', 'Método de pago', Object.entries(METHODS), v.method)}${F.sel('accountId', 'Cuenta o tarjeta', allAccOpts(), v.accountId)}</div>
     ${F.toggle('active', 'Activo (se agrega automáticamente cada mes)', v.active)}`;
-  openDrawer({ title: isNew ? 'Gasto recurrente' : 'Editar recurrente', eyebrow: 'Se repite', body, saveLabel: isNew ? 'Agregar' : 'Guardar',
+  const dr = openDrawer({ title: isNew ? 'Gasto recurrente' : 'Editar recurrente', eyebrow: 'Se repite', body, saveLabel: isNew ? 'Agregar' : 'Guardar',
     onSave: (o, f) => { if (!need(f, o.name && o.amount > 0, 'Escribe nombre y monto')) return; if (byId(S.data.cards, o.accountId)) o.method = 'credito'; else if (o.method === 'credito') o.method = 'debito'; if (isNew) S.data.recurring.push({ id: uid(), ...o }); else { Object.assign(r, o); S.data.transactions.filter(t => t.recurringId === r.id && t.date.slice(0, 7) >= thisMonth()).forEach(t => Object.assign(t, { desc: o.name, amount: o.amount, categoryId: o.categoryId, method: o.method, accountId: o.accountId })); } saveData(); closeDrawer(); render(); toast('Recurrente guardado'); },
     onDelete: isNew ? null : () => confirmBox(`¿Eliminar ${r.name}?`, 'Se quitará de este mes en adelante. Los meses pasados se conservan.', () => { S.data.recurring = S.data.recurring.filter(x => x.id !== r.id); S.data.transactions = S.data.transactions.filter(t => !(t.recurringId === r.id && t.date.slice(0, 7) >= thisMonth())); saveData(); closeDrawer(); render(); toast('Recurrente eliminado'); }) });
+  // Método y cuenta van de la mano: crédito ⇄ tarjeta, efectivo ⇄ cuenta de efectivo
+  const form = dr && dr.querySelector ? dr.querySelector('form') : document.querySelector('.drawer form');
+  const m = form.querySelector('[name=method]'), as = form.querySelector('[name=accountId]');
+  const pick = k => { const accs = S.data.accounts; return (k === 'efectivo' ? accs.find(a => a.type === 'efectivo') : accs.find(a => a.type !== 'efectivo')) || accs[0]; };
+  m.addEventListener('change', () => {
+    const isCard = !!byId(S.data.cards, as.value);
+    if (m.value === 'credito' && !isCard) { if (S.data.cards[0]) as.value = S.data.cards[0].id; else { toast('Agrega una tarjeta de crédito en Tarjetas para usar este método'); m.value = 'debito'; } }
+    else if (m.value !== 'credito' && isCard) { const a = pick(m.value); if (a) as.value = a.id; else { toast('Agrega una cuenta de débito o efectivo en Ajustes'); m.value = 'credito'; } }
+    else if (m.value === 'efectivo') { const a = S.data.accounts.find(x => x.type === 'efectivo'); const c = byId(S.data.accounts, as.value); if (a && c && c.type !== 'efectivo') as.value = a.id; }
+  });
+  as.addEventListener('change', () => { const isCard = !!byId(S.data.cards, as.value); if (isCard) m.value = 'credito'; else if (m.value === 'credito') m.value = 'debito'; });
 }
 
 /* ---------- Categoría ---------- */

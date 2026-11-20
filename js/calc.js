@@ -28,6 +28,8 @@ const inMonth = (t, ym) => t.date.slice(0, 7) === ym;
 const upTo = (t, ym) => t.date.slice(0, 7) <= ym;
 const sum = (arr, f = x => x.amount) => arr.reduce((a, x) => a + (Number(f(x)) || 0), 0);
 const isCash = t => t.method !== 'credito';
+/* Ingreso a una tarjeta = reembolso o saldo a favor: baja la deuda, no es dinero disponible */
+const isCardTx = t => !!(t.accountId && S.data.cards.some(c => c.id === t.accountId));
 
 /* Compras a meses */
 function installmentInfo(ins, ym) {
@@ -46,7 +48,7 @@ function cardBalance(card, ym) {
   const T = S.data.transactions;
   const purchases = sum(T.filter(t => t.type === 'gasto' && t.method === 'credito' && t.accountId === card.id && upTo(t, ym)));
   const inst = sum(S.data.installments.filter(i => i.cardId === card.id), i => installmentInfo(i, ym).chargedToDate);
-  const payments = sum(T.filter(t => t.type === 'pago_tarjeta' && t.targetId === card.id && upTo(t, ym)));
+  const payments = sum(T.filter(t => (t.type === 'pago_tarjeta' && t.targetId === card.id || t.type === 'ingreso' && t.accountId === card.id) && upTo(t, ym)));
   return Math.max(0, (card.opening || 0) + purchases + inst - payments);
 }
 function cardMonth(card, ym) {
@@ -98,7 +100,7 @@ function monthSummary(ym) {
   const gastos = T.filter(t => t.type === 'gasto');
   const instItems = d.installments.map(i => ({ ins: i, info: installmentInfo(i, ym) })).filter(x => x.info.active);
   const instMonthly = sum(instItems, x => x.info.monthly);
-  const ingresos = sum(T.filter(t => t.type === 'ingreso'));
+  const ingresos = sum(T.filter(t => t.type === 'ingreso' && !isCardTx(t)));
   const gastosTx = sum(gastos);
   const gastosTotal = gastosTx + instMonthly;
   const fijos = sum(gastos.filter(t => t.fixed)) + instMonthly;

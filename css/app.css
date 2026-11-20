@@ -1450,3 +1450,60 @@ body{background-color:var(--bg);background-image:var(--grain);background-size:18
 .rl em{font-style:normal;font-weight:700;font-size:15px;color:var(--c)}
 .donut svg path{transition:none}
 @media (max-width:640px){.ringwrap{grid-template-columns:1fr}.rings{width:200px;height:200px}}
+
+/* Formulario: cuánto queda al registrar */
+.cc-f .seg label{min-width:0;font-size:12.5px}
+.cc-hint:empty{display:none}
+.tx-live{display:flex;flex-direction:column;gap:10px}
+.tl{padding:12px 14px;border-radius:14px;border:1.5px solid var(--edge);background:color-mix(in srgb,var(--tc) 8%,var(--surface));box-shadow:3px 3px 0 var(--hard)}
+.tl-h{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink)}
+.tl-h .i{width:16px;height:16px;color:var(--tc);flex:none}.tl-h b{flex:1;min-width:0}
+.tl-h em{font-style:normal;font-weight:800;font-size:16px;color:var(--good)}
+.tl.over .tl-h em{color:var(--bad)}.tl.over{background:color-mix(in srgb,var(--bad) 8%,var(--surface))}
+.tl-bar{display:flex;height:10px;margin:9px 0 4px;border-radius:99px;background:var(--surface-2);overflow:hidden;border:1px solid var(--line)}
+.tl-bar i{display:block;height:100%;background:var(--tc);transition:width .35s cubic-bezier(.3,1.4,.5,1)}
+.tl-bar i:first-child{border-radius:99px 0 0 99px}
+.tl-bar i.new{background:repeating-linear-gradient(135deg,var(--tc) 0 5px,color-mix(in srgb,var(--tc) 55%,#fff) 5px 10px);border-radius:0 99px 99px 0}
+.tl.over .tl-bar i.new{background:repeating-linear-gradient(135deg,var(--bad) 0 5px,color-mix(in srgb,var(--bad) 55%,#fff) 5px 10px)}
+.tl-l{display:flex;justify-content:space-between;font-size:11.5px;color:var(--ink-3);font-weight:700}
+.tl p{margin:6px 0 0;font-size:12.5px;line-height:1.5;color:var(--ink-2)}
+
+/* Lo oculto se oculta siempre (había campos con display:flex que lo ignoraban) */
+[hidden]{display:none!important}
+
+/* ===== Burbujas líquidas (js/goo.js) ===== */
+.goo-tabs{position:relative;isolation:isolate}
+.goo-ly{position:absolute;inset:0;pointer-events:none;z-index:-1;filter:url(#rm-goo) drop-shadow(2px 2px 0 var(--hard))}
+.goo-ly i{position:absolute;left:0;top:0;display:block;background:var(--goo-c,var(--berry));border-radius:10px;will-change:transform}
+.goo-ly .goo-drip{border-radius:50%}
+.goo-ly .goo-hov{transform:scale(0)}
+.gt-soft{--goo-c:var(--surface)}
+.gt-soft .goo-ly{filter:url(#rm-goo) drop-shadow(3px 3px 0 var(--hard))}
+.gt-soft .goo-ly i{border-radius:999px}
+.vtabs.goo-tabs button.on{background:transparent}
+.vtabs.goo-tabs button{transition:color .22s .06s,transform .2s}
+.seg.goo-tabs label:has(input:checked){background:transparent;box-shadow:none}
+.seg.goo-tabs label{transition:color .22s .06s,transform .12s var(--press)}
+.seg.goo-tabs label:hover{background:transparent}
+.side .nav.goo-tabs a.on,.side .nav.goo-tabs a:hover{background:transparent;border-color:transparent;box-shadow:none}
+.ph .chips.goo-tabs .chip{background:transparent}
+.ph .chips.goo-tabs .chip.on{border-color:transparent;box-shadow:none}
+.gt-chips .goo-ly i{border-radius:10px}
+.goo-btn{position:relative;isolation:isolate;--goo-bg:var(--berry)}
+.btn.green.goo-btn{--goo-bg:var(--sprout)}
+.btn.goo-btn,.btn.goo-btn:hover,.btn.goo-btn:active{background:transparent;box-shadow:none;border-color:transparent}
+.goo-bly{position:absolute;inset:-40px;pointer-events:none;z-index:-1;border-radius:inherit;filter:url(#rm-goo) drop-shadow(3px 3px 0 var(--hard))}
+.goo-btn:hover .goo-bly{filter:url(#rm-goo) drop-shadow(4px 4px 0 var(--hard))}
+.goo-btn:active .goo-bly{filter:url(#rm-goo)}
+.goo-bly i{position:absolute;display:block;background:var(--goo-bg);will-change:transform}
+.goo-bly .goo-core{inset:40px;border-radius:inherit;box-shadow:inset 0 0 0 1.5px var(--edge)}
+.goo-bly .goo-d{left:50%;top:50%;border-radius:50%}
+.btn.goo-btn:disabled .goo-bly{filter:url(#rm-goo) drop-shadow(2px 2px 0 var(--line-strong))}
+.bottom a.fab > i.goo-btn{background:transparent;box-shadow:none}
+.bottom a.fab > i.goo-btn .goo-bly{filter:url(#rm-goo) drop-shadow(0 4px 0 var(--vitality))}
+.sheet.add .addopt{animation:gooPop .55s var(--bounce) both}
+.sheet.add .addopt:nth-child(2){animation-delay:.05s}.sheet.add .addopt:nth-child(3){animation-delay:.1s}.sheet.add .addopt:nth-child(4){animation-delay:.15s}.sheet.add .addopt:nth-child(5){animation-delay:.2s}.sheet.add .addopt:nth-child(6){animation-delay:.25s}.sheet.add .addopt:nth-child(n+7){animation-delay:.3s}
+@keyframes gooPop{0%{transform:translateY(34px) scale(.55,.4);opacity:0}55%{transform:translateY(-4px) scale(1.06,.94);opacity:1}100%{transform:none}}
+@media (prefers-reduced-motion:reduce){.sheet.add .addopt{animation:none}}
+@media print{.goo-ly,.goo-bly{display:none}}
+html,body{overflow-x:clip}
