@@ -93,7 +93,7 @@ const Liquid = (() => {
     }
   }
   /* ---------- Cifras: cuentan rápido hasta su valor ---------- */
-  const NUM_SEL = '.hero .big, .mine-big, .stat .v, .ledger b.num, .gauge .g-c b, .rings .c b, .donut .c b, .fl-big, .cs-tile b, .mine-row > b.num, .fl-part-big, .meter-l span';
+  const NUM_SEL = '.inc-hero > b, .hero .big, .mine-big, .stat .v, .ledger b.num, .gauge .g-c b, .rings .c b, .donut .c b, .fl-big, .cs-tile b, .mine-row > b.num, .fl-part-big, .meter-l span';
   function countUp(el) {
     if (el._lqn || el.children.length) return; const txt = el.textContent;
     const m = /^(.*?)(\d[\d,]*(?:\.\d+)?)(.*)$/s.exec(txt); if (!m) return; el._lqn = 1;

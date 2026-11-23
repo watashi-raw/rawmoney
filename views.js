@@ -51,6 +51,7 @@ function viewInicio() {
       ${s.ingresos ? `<div class="meter" role="img" aria-label="Usaste ${pct(usedPct)} de lo que entró"><i style="width:${usedPct}%"></i></div><div class="meter-l"><span>Ya usaste ${pct(usedPct)} de lo que entró</span><span>Entró ${money2(s.ingresos)}</span></div>` : noIn && over ? '' : '<p class="say">Registra lo que te pagaron este mes y aquí verás cuánto te queda.</p>'}
     </div>
     <div class="stub">
+      ${incomeBlock(ym, s)}
       ${mainAccountLedger(ym)}
       <div class="ledger"><span>${icon('cal')}Por pagar este mes</span><b class="num">${money2(s.comprometido)}</b><small>${s.compItems.length ? `${s.compItems.length} pago${s.compItems.length > 1 ? 's' : ''} pendiente${s.compItems.length > 1 ? 's' : ''}` : 'Nada pendiente, qué paz'}</small></div>
       <div class="ledger"><span>${icon('piggy')}Ahorré este mes</span><b class="num">${money2(s.ahorro)}</b><small>${S.data.savingsGoal ? `Meta ${money2(S.data.savingsGoal)} · llevas ${pct(Math.min(100, s.ahorro / S.data.savingsGoal * 100))}` : `${pct(s.ahorroPct)} de lo que entró`}</small></div>
@@ -538,6 +539,27 @@ function viewCategorias() {
 }
 
 /* ---------- AJUSTES / CUENTAS ---------- */
+/* Inicio: lo que entró este mes, bien visible */
+function incomeBlock(ym, s) {
+  const mes = MESES[Number(ym.slice(5)) - 1];
+  const T = S.data.transactions.filter(t => t.type === 'ingreso' && inMonth(t, ym) && !isCardTx(t));
+  const prev = monthSummary(addMonths(ym, -1)).ingresos;
+  const byCat = {}; T.forEach(t => { const k = t.categoryId || 'otros'; byCat[k] = (byCat[k] || 0) + t.amount; });
+  const byAcc = {}; T.forEach(t => { byAcc[t.accountId] = (byAcc[t.accountId] || 0) + t.amount; });
+  const cats = Object.entries(byCat).sort((a, b) => b[1] - a[1]);
+  const accs = Object.entries(byAcc).sort((a, b) => b[1] - a[1]);
+  const delta = prev ? (s.ingresos - prev) / prev * 100 : null;
+  const last = T.slice().sort((a, b) => b.date.localeCompare(a.date))[0];
+  return `<div class="inc-hero${s.ingresos ? '' : ' none'}"${s.ingresos ? ' data-inc role="link" tabindex="0" title="Ver tus ingresos del mes"' : ''}>
+    <div class="inc-top"><span>${icon('plus')}Entró en ${mes}</span>${delta != null && s.ingresos ? `<em class="${delta >= 0 ? 'up' : 'down'}">${delta >= 0 ? '▲' : '▼'} ${pct(Math.abs(delta))} vs ${MESES[Number(addMonths(ym, -1).slice(5)) - 1].slice(0, 3).toLowerCase()}</em>` : ''}</div>
+    <b class="num">${money2(s.ingresos)}</b>
+    ${s.ingresos ? `<div class="inc-bar" role="img" aria-label="De dónde vino">${cats.map(([k, v], i) => `<i style="flex:${v};--c:${col(cat(k).color || '#B9BF4A')}" data-tip="<b>${esc(cat(k).name)}</b>${money2(v)}"></i>`).join('')}</div>
+    <div class="inc-chips">${cats.slice(0, 3).map(([k, v]) => `<span style="--c:${col(cat(k).color || '#B9BF4A')}"><i></i>${esc(cat(k).name)} <strong>${money0(v)}</strong></span>`).join('')}</div>
+    <small>${T.length} ingreso${T.length === 1 ? '' : 's'}${accs.length ? ` · a ${accs.slice(0, 3).map(([id, v]) => `${esc(accountName(id))} ${money0(v)}`).join(', ')}` : ''}${last ? ` · el último: ${esc(last.desc || '')} el ${Number(last.date.slice(8))}` : ''}</small>`
+    : `<small>Aún no registras ingresos este mes.</small><button class="btn green sm" data-act="new-ingreso">${icon('plus')}Registrar ingreso</button>`}
+  </div>`;
+}
+
 /* Inicio: la cuenta principal (HSBC por defecto), sin sumar las demás */
 function mainAccountLedger(ym) {
   const ma = mainAccount();
