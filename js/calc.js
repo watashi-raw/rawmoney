@@ -81,17 +81,35 @@ function debtInfo(debt, ym) {
 }
 
 /* Saldo de cuentas (débito / efectivo) al cierre del mes */
-function accountBalance(acc, ym) {
-  const T = S.data.transactions.filter(t => upTo(t, ym));
-  let b = acc.opening || 0;
-  T.forEach(t => {
-    if (t.type === 'ingreso' && t.accountId === acc.id) b += t.amount;
-    else if (t.type === 'gasto' && t.accountId === acc.id && t.method !== 'credito') b -= t.amount;
-    else if ((t.type === 'pago_tarjeta' || t.type === 'pago_deuda' || t.type === 'ahorro') && t.accountId === acc.id) b -= t.amount;
-    else if (t.type === 'transferencia') { if (t.accountId === acc.id) b -= t.amount; if (t.targetId === acc.id) b += t.amount; }
-  });
-  return b;
+/* Cuánto entra (+) o sale (−) de una cuenta con un movimiento */
+function accountDelta(acc, t) {
+  let d = 0;
+  if (t.type === 'ingreso' && t.accountId === acc.id) d += t.amount;
+  else if (t.type === 'gasto' && t.accountId === acc.id && t.method !== 'credito') d -= t.amount;
+  else if ((t.type === 'pago_tarjeta' || t.type === 'pago_deuda' || t.type === 'ahorro') && t.accountId === acc.id) d -= t.amount;
+  else if (t.type === 'transferencia') { if (t.accountId === acc.id) d -= t.amount; if (t.targetId === acc.id) d += t.amount; }
+  return d;
 }
+function accountBalance(acc, ym) {
+  return S.data.transactions.filter(t => upTo(t, ym)).reduce((b, t) => b + accountDelta(acc, t), acc.opening || 0);
+}
+/* Saldo a una fecha (sin contar lo programado más adelante en el mes) */
+function accountBalanceAt(acc, iso) {
+  return S.data.transactions.filter(t => t.date <= iso).reduce((b, t) => b + accountDelta(acc, t), acc.opening || 0);
+}
+/* Lo que entró y salió de una cuenta en el mes */
+function accountFlow(acc, ym) {
+  let inn = 0, out = 0;
+  S.data.transactions.filter(t => inMonth(t, ym)).forEach(t => { const d = accountDelta(acc, t); if (d > 0) inn += d; else out -= d; });
+  return { in: inn, out, count: S.data.transactions.filter(t => inMonth(t, ym) && accountDelta(acc, t)).length };
+}
+/* Cuenta que se ve en Inicio: la que elegiste; si no, HSBC; si no, la primera de débito */
+function mainAccount() {
+  const A = S.data.accounts;
+  return byId(A, S.data.mainAccountId) || A.find(a => /hsbc/i.test(`${a.name} ${a.institution || ''}`)) || A.find(a => a.type !== 'efectivo') || A[0] || null;
+}
+/* Saldo "de hoy" en el mes actual; al cierre en meses pasados o futuros */
+const accountNow = (acc, ym) => ym === thisMonth() ? accountBalanceAt(acc, todayISO()) : accountBalance(acc, ym);
 const savingsTotal = ym => sum(S.data.transactions.filter(t => t.type === 'ahorro' && (ym ? upTo(t, ym) : true)));
 
 /* Resumen mensual */

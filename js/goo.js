@@ -37,6 +37,8 @@ const Goo = (() => {
     { sel: '.vtabs', items: 'button', act: el => el.querySelector('button.on'), key: () => 'vtabs', cls: 'gt-tone' },
     { sel: '.seg', items: 'label', act: el => { const i = el.querySelector('input:checked'); return i && i.closest('label'); }, key: el => 'seg:' + (el.dataset.f || ''), cls: 'gt-tone', live: true },
     { sel: '.side .nav', items: 'a', act: el => el.querySelector('a.on'), key: () => 'nav', cls: 'gt-soft', full: true },
+    { sel: '.acc-pills', items: '.acc-pill', act: el => el.querySelector('.acc-pill.on'), key: () => 'accp', cls: 'gt-tone gt-chips', live: true, need: 2 },
+    { sel: '.dd-tg', items: 'button', act: el => el.querySelector('button.on'), key: () => 'ddtg', cls: 'gt-tone' },
     { sel: '.ph .chips', items: '.chip', act: el => el.querySelector('.chip.on'), key: () => 'chips:' + (typeof S !== 'undefined' ? S.view : ''), cls: 'gt-tone gt-chips', need: 2 },
   ];
   const mem = {};

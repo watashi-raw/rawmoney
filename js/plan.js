@@ -394,3 +394,67 @@ function txLiveHTML(form, t) {
       <p>${b.msg}${b.sub ? ` ${b.sub}` : ''}</p></div>`; }).join('');
 }
 function txAfterNote(o, t) { try { const R = txImpact(o, t); return R.toast ? `Registrado · ${R.toast}` : ''; } catch (e) { return ''; } }
+
+/* ===== Gasto por día: promedio, los días que más y los que menos ===== */
+const WD_L = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+const WD_S = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
+function dailySpend(ym, noFixed) {
+  const n = daysIn(ym), cur = ym === thisMonth();
+  const upto = cur ? Number(todayISO().slice(8)) : ym < thisMonth() ? n : 0;
+  const days = Array.from({ length: n }, (_, i) => ({ d: i + 1, v: 0, cats: {}, iso: `${ym}-${String(i + 1).padStart(2, '0')}` }));
+  S.data.transactions.filter(t => t.type === 'gasto' && inMonth(t, ym) && !(noFixed && t.fixed)).forEach(t => {
+    const k = Number(t.date.slice(8)) - 1; if (k < 0 || k >= upto) return;
+    days[k].v += t.amount; const c = t.categoryId || 'otros'; days[k].cats[c] = (days[k].cats[c] || 0) + t.amount;
+  });
+  const lived = days.slice(0, upto), total = sum(lived, x => x.v), avg = upto ? total / upto : 0;
+  const spent = lived.filter(x => x.v > 0);
+  const top = spent.slice().sort((a, b) => b.v - a.v).slice(0, 3);
+  const low = spent.slice().sort((a, b) => a.v - b.v).filter(x => !top.includes(x)).slice(0, 3);
+  const zero = lived.filter(x => !x.v).length;
+  // promedio por día de la semana
+  const wd = Array.from({ length: 7 }, () => ({ v: 0, c: 0 }));
+  lived.forEach(x => { const w = new Date(x.iso + 'T12:00:00').getDay(); wd[w].v += x.v; wd[w].c++; });
+  const wavg = wd.map(x => x.c ? x.v / x.c : 0);
+  return { n, upto, days, total, avg, top, low, zero, wavg };
+}
+function dailySpendHTML(ym) {
+  const all = dailySpend(ym); if (!all.upto || !all.total) return '';
+  const nf = !!S.ddNoFixed, D = nf ? dailySpend(ym, true) : all;
+  const toggle = `<div class="dd-tg" role="radiogroup" aria-label="Qué gastos contar"><button type="button" role="radio" data-dd="all" class="${nf ? '' : 'on'}" aria-checked="${!nf}">Todo</button><button type="button" role="radio" data-dd="var" class="${nf ? 'on' : ''}" aria-checked="${nf}">Sin fijos</button></div>`;
+  if (!D.total) return chartCard('Tus días de gasto', toggle, '<div class="empty"><h3>Sin gastos variables</h3><p>Este mes solo hay gastos fijos (renta, servicios…). Toca «Todo» para verlos.</p></div>', 'dd-card');
+  const W = 640, H = 230, pl = 44, pr = 12, pt = 18, pb = 26, iw = W - pl - pr, ih = H - pt - pb;
+  const max = nice(Math.max(...D.days.map(x => x.v), D.avg)), y = v => pt + ih - v / max * ih, slot = iw / D.n, bw = Math.max(4, Math.min(16, slot * .66));
+  const HI = col('#B02A4A'), LO = col('#666A28'), MID = col('#B39E8B'), AVG = col('#5B2A55');
+  const isTop = x => D.top.includes(x), isLow = x => D.low.includes(x);
+  const wdOf = x => WD_L[new Date(x.iso + 'T12:00:00').getDay()];
+  const mainCat = x => { const e = Object.entries(x.cats).sort((a, b) => b[1] - a[1])[0]; return e ? cat(e[0]).name : ''; };
+  const grid = [0, .5, 1].map(f => `<line x1="${pl}" x2="${W - pr}" y1="${y(f * max)}" y2="${y(f * max)}"/>`).join('');
+  const ylab = [0, .5, 1].map(f => `<text x="${pl - 8}" y="${y(f * max) + 4}" text-anchor="end">${kfmt(f * max)}</text>`).join('');
+  const marks = new Set([1, 5, 10, 15, 20, 25, D.n, ...D.top.map(x => x.d), ...D.low.map(x => x.d)]);
+  let bars = '', xl = '';
+  D.days.forEach((x, i) => {
+    const cx = pl + slot * (i + .5), fut = x.d > D.upto;
+    if (marks.has(x.d)) xl += `<text x="${cx}" y="${H - 8}" text-anchor="middle"${isTop(x) || isLow(x) ? ` class="dd-mk" fill="${isTop(x) ? HI : LO}"` : ''}>${x.d}</text>`;
+    if (fut) { bars += `<circle cx="${cx}" cy="${y(0) - 2}" r="1.6" class="dd-fut"/>`; return; }
+    if (!x.v) { bars += `<circle cx="${cx}" cy="${y(0) - 3}" r="2.6" fill="${LO}" opacity=".55"><title>${x.d}: sin gastos</title></circle>`; return; }
+    const h = Math.max(3, y(0) - y(x.v)), fill = isTop(x) ? HI : isLow(x) ? LO : MID;
+    bars += `<rect x="${cx - bw / 2}" y="${y(0) - h}" width="${bw}" height="${h}" rx="${Math.min(bw / 2, h / 2).toFixed(1)}" fill="${fill}" data-tip="<b>${wdOf(x)} ${x.d}</b>${money0(x.v)}${mainCat(x) ? ` · sobre todo ${esc(mainCat(x))}` : ''}${x.v > D.avg ? ` · ${pct((x.v / D.avg - 1) * 100)} arriba del promedio` : ''}"/>`;
+  });
+  const ay = y(D.avg);
+  const avgLine = `<line class="dd-avg" x1="${pl}" x2="${W - pr}" y1="${ay}" y2="${ay}" stroke="${AVG}"/>${(() => { const t = `promedio ${money0(D.avg)}/día`, tw = t.length * 6.9 + 14, ty = Math.max(pt + 2, ay - 22); return `<rect class="dd-avgbg" x="${W - pr - tw}" y="${ty}" width="${tw}" height="18" rx="9" fill="${AVG}"/><text class="dd-avgt" x="${W - pr - tw / 2}" y="${ty + 13}" text-anchor="middle">${t}</text>`; })()}`;
+  const svg = `<div class="chart dd-chart"><svg viewBox="0 0 ${W} ${H}" data-lq="bars"><g class="grid">${grid}</g>${ylab}${xl}${bars}${avgLine}</svg></div>`;
+  const row = (x, c) => `<li style="--c:${c}"><span>${wdOf(x)} ${x.d}</span><b class="num">${money0(x.v)}</b><small>${esc(mainCat(x))}</small></li>`;
+  const wmax = Math.max(...D.wavg), positive = D.wavg.filter(v => v > 0), wmin = positive.length ? Math.min(...positive) : 0;
+  const order = [1, 2, 3, 4, 5, 6, 0];
+  const week = `<div class="dd-week" role="img" aria-label="Promedio por día de la semana">${order.map(w => { const v = D.wavg[w], hi = v && v === wmax, lo = v && v === wmin && wmin !== wmax; return `<div class="dd-wd${hi ? ' hi' : lo ? ' lo' : ''}" data-tip="<b>${WD_L[w]}</b>${money0(v)} en promedio"><i style="height:${wmax ? Math.max(4, v / wmax * 100) : 4}%"></i><span>${WD_S[w]}</span></div>`; }).join('')}</div>`;
+  const hiW = WD_L[D.wavg.indexOf(wmax)], loW = wmin ? WD_L[D.wavg.indexOf(wmin)] : '';
+  const pl2 = w => { const s = w.toLowerCase(); return /o$/.test(s) ? s + 's' : s; };
+  const say = `En promedio gastas <b>${money0(D.avg)}</b> al día${nf ? ' sin contar fijos' : ''}. Los <b>${pl2(hiW)}</b> es cuando más se va (${money0(wmax)})${loW && loW !== hiW ? ` y los <b>${pl2(loW)}</b> cuando menos (${money0(wmin)})` : ''}.`;
+  return chartCard('Tus días de gasto', toggle,
+    `<p class="dd-say">${say} <span class="dd-legend">${D.upto === D.n ? 'Todo el mes' : `Del 1 al ${D.upto}`} · <i class="dd-key hi"></i>más <i class="dd-key lo"></i>menos · <i class="dd-key avg"></i>promedio</span></p>${svg}
+    <div class="dd-grid">
+      <div><h3>Los que más</h3><ol class="dd-list">${D.top.map(x => row(x, HI)).join('')}</ol></div>
+      <div><h3>Los que menos</h3><ol class="dd-list">${D.low.map(x => row(x, LO)).join('') || '<li class="dd-none">Aún no hay suficientes días</li>'}</ol>${D.zero ? `<p class="dd-zero"><b>${D.zero}</b> día${D.zero === 1 ? '' : 's'} sin gastar nada</p>` : ''}</div>
+      <div><h3>Por día de la semana</h3>${week}</div>
+    </div>`, 'dd-card');
+}

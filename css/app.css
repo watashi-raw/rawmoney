@@ -1507,3 +1507,64 @@ body{background-color:var(--bg);background-image:var(--grain);background-size:18
 @media (prefers-reduced-motion:reduce){.sheet.add .addopt{animation:none}}
 @media print{.goo-ly,.goo-bly{display:none}}
 html,body{overflow-x:clip}
+
+/* ===== Cuentas: principal en Inicio, botones rápidos en el formulario ===== */
+.acc-pick{appearance:none;-webkit-appearance:none;font:inherit;letter-spacing:inherit;text-transform:inherit;color:var(--ink);background:transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235B2A55' stroke-width='2.4' stroke-linecap='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 2px center/13px;border:0;border-bottom:1.5px dashed var(--line-strong);border-radius:0;padding:1px 20px 1px 0;cursor:pointer;max-width:100%}
+.acc-pick:hover{border-bottom-color:var(--berry);color:var(--berry)}
+.acc-pick:focus-visible{outline:2px solid var(--berry);outline-offset:3px}
+.ledger.acc-main small em{font-style:normal}
+.ledger.acc-main small em strong{font-weight:700}
+.ledger.acc-main small em.in strong{color:var(--good)}
+.ledger.acc-main small em.out strong{color:var(--bad)}
+.ledger.acc-main small a{color:var(--berry)}
+.acc-suggest{margin-top:14px;padding:12px 14px;border:1.5px dashed var(--line-strong);border-radius:14px;display:grid;gap:10px;justify-items:start}
+.acc-suggest p{margin:0;font-size:13px;color:var(--ink-2)}
+.acc-pills{display:flex;flex-wrap:wrap;gap:6px;margin:-4px 0 4px}
+.acc-pill{border:1.5px solid var(--edge);background:var(--surface);color:var(--ink-2);border-radius:12px;padding:7px 12px;cursor:pointer;display:inline-flex;flex-direction:column;align-items:flex-start;gap:1px;font:inherit;line-height:1.15;box-shadow:2px 2px 0 var(--hard);transition:color .22s .06s,transform .12s var(--press),box-shadow .12s var(--press)}
+.acc-pill b{font-size:12.5px;font-weight:700}
+.acc-pill small{font-size:11px;color:var(--ink-3);transition:color .22s .06s}
+.acc-pill:hover{transform:translate(-1px,-1px);box-shadow:3px 3px 0 var(--hard)}
+.acc-pill:active{transform:translate(2px,2px);box-shadow:0 0 0 var(--hard)}
+.acc-pill.on{background:var(--berry);color:var(--on-tone);border-color:var(--edge)}
+.acc-pill.on small{color:color-mix(in srgb,var(--on-tone) 78%,transparent)}
+.acc-pills.goo-tabs .acc-pill{background:transparent}
+.acc-pills.goo-tabs .acc-pill.on{border-color:transparent;box-shadow:none}
+
+/* ===== Tus días de gasto ===== */
+.dd-card{margin-bottom:18px}
+.dd-say{margin:0 0 6px;font-size:13.5px;color:var(--ink-2)}
+.dd-chart svg text{font-size:11px;fill:var(--ink-3)}
+.dd-chart svg .dd-mk{font-weight:700}
+.dd-chart .dd-avg{stroke-width:1.6;stroke-dasharray:5 5}
+.dd-chart svg .dd-avgt{font-size:11px;font-weight:700;fill:var(--on-tone)}
+.dd-chart .dd-fut{fill:var(--line-strong)}
+.dd-key{display:inline-block;width:9px;height:9px;border-radius:3px;margin:0 4px 0 8px;vertical-align:-1px}
+.dd-key.hi{background:#B02A4A}.dd-key.lo{background:#666A28}
+.dd-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;margin-top:12px;padding-top:14px;border-top:1.5px dashed var(--line-strong)}
+.dd-grid h3{font-size:19px;margin:0 0 8px}
+.dd-list{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.dd-list li{display:grid;grid-template-columns:1fr auto;gap:0 10px;padding:7px 10px 7px 12px;border-radius:10px;background:var(--surface-2);border-left:4px solid var(--c)}
+.dd-list li span{font-size:12.5px;font-weight:700;color:var(--ink)}
+.dd-list li b{font-size:17px;color:var(--c)}
+.dd-list li small{grid-column:1/-1;font-size:11px;color:var(--ink-3)}
+.dd-list .dd-none{border-left-color:var(--line-strong);font-size:12px;color:var(--ink-3)}
+.dd-zero{margin:8px 0 0;font-size:12.5px;color:var(--good)}
+.dd-week{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;align-items:end;height:118px}
+.dd-wd{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:5px;cursor:default}
+.dd-wd i{display:block;width:100%;max-width:26px;border-radius:8px;background:#B39E8B;transform-origin:50% 100%;animation:ddUp .7s var(--bounce) both}
+.dd-wd.hi i{background:#B02A4A}.dd-wd.lo i{background:#666A28}
+.dd-wd span{font-size:11px;font-weight:700;color:var(--ink-3)}
+.dd-wd.hi span{color:#B02A4A}.dd-wd.lo span{color:#666A28}
+.dd-wd:nth-child(2) i{animation-delay:.04s}.dd-wd:nth-child(3) i{animation-delay:.08s}.dd-wd:nth-child(4) i{animation-delay:.12s}.dd-wd:nth-child(5) i{animation-delay:.16s}.dd-wd:nth-child(6) i{animation-delay:.2s}.dd-wd:nth-child(7) i{animation-delay:.24s}
+@keyframes ddUp{from{transform:scaleY(0)}}
+@media (prefers-reduced-motion:reduce){.dd-wd i{animation:none}}
+@media (max-width:900px){.dd-grid{grid-template-columns:1fr 1fr}.dd-grid>div:last-child{grid-column:1/-1}}
+@media (max-width:520px){.dd-grid{grid-template-columns:1fr}}
+.dd-legend{display:block;margin-top:4px;font-size:11.5px;color:var(--ink-3)}
+.dd-key.avg{background:none;border-top:2px dashed #5B2A55;border-radius:0;height:0;width:14px;vertical-align:3px}
+.dd-tg{display:inline-flex;gap:3px;padding:3px;border:1.5px solid var(--edge);border-radius:12px;background:var(--surface-2)}
+.dd-tg button{border:0;background:transparent;font:600 12px var(--font);color:var(--ink-2);padding:6px 11px;border-radius:9px;cursor:pointer}
+.dd-tg button.on{background:var(--berry);color:var(--on-tone)}
+.dd-list li{min-width:0}.dd-list li span,.dd-list li small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dd-grid>div{min-width:0}
+.dd-tg.goo-tabs button.on{background:transparent}

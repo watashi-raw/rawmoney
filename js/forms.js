@@ -167,7 +167,7 @@ function need(form, ok, msg) { if (!ok) { toast(msg); return false; } return tru
 
 /* ---------- Movimiento ---------- */
 function formTx(t, preset = {}) {
-  const isNew = !t; const v = { type: 'gasto', date: todayISO(), method: 'debito', accountId: (S.data.accounts[0] || {}).id, categoryId: 'alimentacion', fixed: false, ...preset, ...(t || {}) };
+  const isNew = !t; const v = { type: 'gasto', date: todayISO(), method: 'debito', accountId: (mainAccount() || S.data.accounts[0] || {}).id, categoryId: 'alimentacion', fixed: false, ...preset, ...(t || {}) };
   const body = `
     ${F.seg('type', Object.entries(TYPES), v.type)}
     ${F.amount('amount', v.amount)}
@@ -176,7 +176,8 @@ function formTx(t, preset = {}) {
     ${newCatBox()}
     <div class="f cc-f" data-f="cc"><label>¿Es con tarjeta de crédito?</label>${F.seg('cc', [['no', 'No, cuenta o efectivo'], ['si', 'Sí, tarjeta de crédito']], (v.method === 'credito' || byId(S.data.cards, v.accountId)) ? 'si' : 'no')}<div class="hint cc-hint"></div></div>
     ${F.sel('method', 'Método de pago', Object.entries(METHODS), v.method)}
-    ${F.combo('accountId', 'Cuenta o tarjeta', '', 'Escribe o elige, ej. BBVA, Efectivo')}
+    ${F.combo('accountId', 'Cuenta o tarjeta', '', 'Escribe o elige, ej. HSBC, Nu, Efectivo')}
+    <div class="acc-pills" role="radiogroup" aria-label="Elige la cuenta" hidden></div>
     <div class="tx-live" aria-live="polite" hidden></div>
     ${F.combo('targetId', 'Destino', '', 'Escribe o elige…')}
     ${F.toggle('fixed', 'Es un gasto fijo (renta, servicios, mensualidades…)', v.fixed)}
@@ -228,6 +229,7 @@ function formTx(t, preset = {}) {
     const as = form.querySelector('[name=accountId]'); let cur = as.value; const opts = ccOn ? cardOpts() : accOpts();
     if (!opts.some(o => o[0] === cur)) cur = ccOn ? ((S.data.cards[0] || {}).id || '') : ((S.data.accounts.find(a => method.value === 'efectivo' ? a.type === 'efectivo' : a.type !== 'efectivo') || S.data.accounts[0] || {}).id || '');
     acc.setOpts(opts); acc.set(cur);
+    paintPills(ccOn ? [] : opts, cur);
     form.querySelector('label[for=fx-accountId]').textContent = ccOn ? '¿Cuál tarjeta?' : form.querySelector('label[for=fx-accountId]').textContent;
     // destino
     const tcur = form.querySelector('[name=targetId]').value;
@@ -240,6 +242,19 @@ function formTx(t, preset = {}) {
     if (ccOn) method.value = 'credito';
     if (typeof txLiveHTML === 'function') { const box = form.querySelector('.tx-live'); const h = txLiveHTML(form, t); box.innerHTML = h; box.hidden = !h; }
   };
+  // botones rápidos con cada cuenta y su saldo de hoy
+  const pills = form.querySelector('.acc-pills'); let pillKey = '';
+  function paintPills(opts, cur) {
+    const show = opts.length > 1 && opts.length <= 10; pills.hidden = !show; if (!show) return;
+    const key = opts.map(o => o[0]).join('|');
+    if (key !== pillKey) {
+      pillKey = key; pills._goo = false; pills.classList.remove('goo-tabs');
+      pills.innerHTML = opts.map(([id, nm]) => { const a = byId(S.data.accounts, id); return `<button type="button" role="radio" class="acc-pill" data-id="${id}"><b>${esc(nm)}</b>${a ? `<small>${money0(accountBalanceAt(a, todayISO()))}</small>` : ''}</button>`; }).join('');
+    }
+    pills.querySelectorAll('.acc-pill').forEach(b => { const on = b.dataset.id === cur; b.classList.toggle('on', on); b.setAttribute('aria-checked', on); });
+    pills.dispatchEvent(new Event('change'));
+  }
+  pills.addEventListener('click', e => { const b = e.target.closest('.acc-pill'); if (!b) return; acc.set(b.dataset.id, false); });
   acc.setOpts(allAccOpts()); acc.set(v.accountId);
   dest.setOpts([...accOpts(), ...cardOpts(), ...S.data.debts.map(d => [d.id, d.name])]); dest.set(v.targetId);
   form.addEventListener('change', e => {
@@ -394,12 +409,30 @@ function formBudget(catId) {
 }
 
 /* ---------- Cuenta ---------- */
+/* Tus cuentas de siempre: se crean de un jalón desde Ajustes */
+const MY_ACCOUNTS = [['HSBC', 'HSBC'], ['Nu', 'Nu'], ['Mercado Pago', 'Mercado Pago'], ['Ualá', 'Ualá'], ['Fondeadora', 'Fondeadora']];
+const missingMyAccounts = () => MY_ACCOUNTS.filter(([n]) => !S.data.accounts.some(a => fold(a.name).includes(fold(n)) || fold(a.institution || '') === fold(n))).map(([n]) => n);
+function addMyAccounts() {
+  const miss = missingMyAccounts(); if (!miss.length) return;
+  miss.forEach(n => S.data.accounts.push({ id: uid(), name: n, type: 'debito', institution: (MY_ACCOUNTS.find(x => x[0] === n) || [])[1] || '', opening: 0 }));
+  if (!byId(S.data.accounts, S.data.mainAccountId)) { const h = mainAccount(); if (h) S.data.mainAccountId = h.id; }
+  saveData(); render(); toast(`Listo: ${miss.join(', ')}. Toca cada una para poner cuánto tiene.`);
+}
 function formAccount(a) {
   const isNew = !a; const v = { type: 'debito', opening: 0, ...(a || {}) };
-  const body = `${F.text('name', 'Nombre', v.name, 'Ej. BBVA Débito, Efectivo', 'required')}${F.seg('type', [['debito', 'Débito'], ['efectivo', 'Efectivo']], v.type)}<div class="fr">${F.text('institution', 'Institución', v.institution, 'Opcional')}${F.num('opening', isNew ? 'Saldo actual' : 'Saldo inicial registrado', v.opening, '0')}</div><div class="hint">El saldo cambia con cada ingreso, gasto, pago, ahorro o transferencia que registres.</div>`;
-  openDrawer({ title: isNew ? 'Agregar cuenta' : 'Editar cuenta', eyebrow: 'Cuenta', body, saveLabel: isNew ? 'Agregar' : 'Guardar',
-    onSave: (o, f) => { if (!need(f, o.name, 'Escribe el nombre')) return; o.opening = o.opening || 0; if (isNew) S.data.accounts.push({ id: uid(), ...o }); else Object.assign(a, o); saveData(); closeDrawer(); render(); toast('Cuenta guardada'); },
-    onDelete: isNew ? null : () => confirmBox(`¿Eliminar ${a.name}?`, 'Los movimientos se conservan.', () => { S.data.accounts = S.data.accounts.filter(x => x.id !== a.id); saveData(); closeDrawer(); render(); toast('Cuenta eliminada'); }) });
+  const today = todayISO(), now = isNew ? 0 : accountBalanceAt(a, today), isMain = !isNew && mainAccount() === a;
+  const body = `${F.text('name', 'Nombre', v.name, 'Ej. HSBC, Nu, Ualá, Mercado Pago', 'required')}${F.seg('type', [['debito', 'Débito o app'], ['efectivo', 'Efectivo']], v.type)}<div class="fr">${F.text('institution', 'Banco o app', v.institution, 'Opcional')}${F.num('opening', isNew ? '¿Cuánto tiene hoy?' : '¿Cuánto tiene hoy? (aprox.)', isNew ? v.opening : Math.round(now * 100) / 100, '0')}</div>
+    ${F.toggle('main', 'Verla en Inicio (cuenta principal)', isNew ? !S.data.accounts.length : isMain)}
+    <div class="hint">${isNew ? 'Desde aquí, el saldo sube con cada ingreso y baja con cada gasto, pago o transferencia que registres en esta cuenta.' : `Si el número no cuadra con tu app, escribe lo que de verdad tiene y se ajusta sin tocar tus movimientos.${a ? ` Este mes: entró ${money2(accountFlow(a, thisMonth()).in)} y salió ${money2(accountFlow(a, thisMonth()).out)}.` : ''}`}</div>`;
+  openDrawer({ title: isNew ? 'Agregar cuenta' : `Editar ${a.name}`, eyebrow: 'Cuenta', body, saveLabel: isNew ? 'Agregar' : 'Guardar',
+    onSave: (o, f) => {
+      if (!need(f, o.name, 'Escribe el nombre')) return;
+      const want = Number(o.opening) || 0, main = !!o.main; delete o.main;
+      if (isNew) { o.opening = want; const n = { id: uid(), ...o }; S.data.accounts.push(n); if (main) S.data.mainAccountId = n.id; }
+      else { o.opening = (a.opening || 0) + (want - now); Object.assign(a, o); if (main) S.data.mainAccountId = a.id; else if (isMain) S.data.mainAccountId = (S.data.accounts.find(x => x !== a) || a).id; }
+      saveData(); closeDrawer(); render(); toast('Cuenta guardada');
+    },
+    onDelete: isNew ? null : () => confirmBox(`¿Eliminar ${a.name}?`, isMain ? 'Los movimientos se conservan. Es la que ves en Inicio: después elige otra desde ahí.' : 'Los movimientos se conservan.', () => { S.data.accounts = S.data.accounts.filter(x => x.id !== a.id); if (S.data.mainAccountId === a.id) S.data.mainAccountId = (mainAccount() || {}).id || null; saveData(); closeDrawer(); render(); toast('Cuenta eliminada'); }) });
 }
 
 /* Monto: botones de suma rápida con animación */

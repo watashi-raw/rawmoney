@@ -51,7 +51,7 @@ function viewInicio() {
       ${s.ingresos ? `<div class="meter" role="img" aria-label="Usaste ${pct(usedPct)} de lo que entró"><i style="width:${usedPct}%"></i></div><div class="meter-l"><span>Ya usaste ${pct(usedPct)} de lo que entró</span><span>Entró ${money2(s.ingresos)}</span></div>` : noIn && over ? '' : '<p class="say">Registra lo que te pagaron este mes y aquí verás cuánto te queda.</p>'}
     </div>
     <div class="stub">
-      <div class="ledger"><span>${icon('wallet')}Tengo en cuentas</span><b class="num">${money2(s.disponibleCuentas)}</b><small>${S.data.accounts.map(a => `${esc(a.name)} ${money2(accountBalance(a, ym))}`).join(' · ') || 'Agrega una cuenta en Ajustes'}</small></div>
+      ${mainAccountLedger(ym)}
       <div class="ledger"><span>${icon('cal')}Por pagar este mes</span><b class="num">${money2(s.comprometido)}</b><small>${s.compItems.length ? `${s.compItems.length} pago${s.compItems.length > 1 ? 's' : ''} pendiente${s.compItems.length > 1 ? 's' : ''}` : 'Nada pendiente, qué paz'}</small></div>
       <div class="ledger"><span>${icon('piggy')}Ahorré este mes</span><b class="num">${money2(s.ahorro)}</b><small>${S.data.savingsGoal ? `Meta ${money2(S.data.savingsGoal)} · llevas ${pct(Math.min(100, s.ahorro / S.data.savingsGoal * 100))}` : `${pct(s.ahorroPct)} de lo que entró`}</small></div>
     </div>
@@ -132,6 +132,7 @@ function viewGastos() {
   return `
   <div class="ph"><div><div class="eyebrow">${monthLabel(ym)}</div><h1>¿En qué se fue mi dinero?</h1><p>Gastaste <b class="num">${money0(s.gastosTotal)}</b>${s.gastosTotal ? ` · ${pct(s.fijos / s.gastosTotal * 100)} fijo y ${pct(s.variables / s.gastosTotal * 100)} variable` : ''}.</p></div></div>
   ${s.gastosTotal ? `
+  ${typeof dailySpendHTML === 'function' ? dailySpendHTML(ym) : ''}
   <section class="g23">
     <div class="card"><div class="ch"><h2>Distribución por categoría</h2></div><div class="donutwrap">${donutSVG(items, 'gastado', money0(s.gastosTotal))}<div class="legend">${items.map(i => `<div class="l" data-key="${i.key}" style="--cat:${i.color}"><i></i><span>${esc(i.label)}</span><b>${money0(i.value)}</b><em>${pct(i.value / s.gastosTotal * 100)}</em></div>`).join('')}</div></div></div>
     <div class="card"><div class="ch"><h2>Por tipo de compra</h2></div>
@@ -537,12 +538,21 @@ function viewCategorias() {
 }
 
 /* ---------- AJUSTES / CUENTAS ---------- */
+/* Inicio: la cuenta principal (HSBC por defecto), sin sumar las demás */
+function mainAccountLedger(ym) {
+  const ma = mainAccount();
+  if (!ma) return `<div class="ledger acc-main"><span>${icon('bank')}Tu cuenta</span><b class="num">—</b><small><a href="#ajustes">Agrega tus cuentas (HSBC, Nu, Ualá…)</a></small></div>`;
+  const f = accountFlow(ma, ym), cur = ym === thisMonth();
+  return `<div class="ledger acc-main"><span>${icon(ma.type === 'efectivo' ? 'coins' : 'bank')}${S.data.accounts.length > 1 ? `<select class="acc-pick" aria-label="Cuenta que ves aquí">${S.data.accounts.map(a => `<option value="${a.id}"${a.id === ma.id ? ' selected' : ''}>${esc(a.name)}</option>`).join('')}</select>` : esc(ma.name)}</span><b class="num" title="${cur ? 'Saldo aproximado hoy' : 'Saldo al cierre de ' + monthShort(ym)}">${money2(accountNow(ma, ym))}</b><small><em class="in">↓ Entró <strong>${money2(f.in)}</strong></em> · <em class="out">↑ Salió <strong>${money2(f.out)}</strong></em></small></div>`;
+}
+
 function viewAjustes() {
   const ym = S.month;
   return `
-  <div class="ph"><div><div class="eyebrow">Configura</div><h1>Cuentas y ajustes</h1><p>Tus cuentas de débito y efectivo, respaldo de datos y datos de demostración.</p></div><div class="acts"><button class="btn primary" data-act="new-acc">${icon('plus')}<span>Agregar cuenta</span></button></div></div>
+  <div class="ph"><div><div class="eyebrow">Configura</div><h1>Cuentas y ajustes</h1><p>Tus cuentas y apps (HSBC, Nu, Ualá, Mercado Pago…), respaldo de datos y datos de demostración.</p></div><div class="acts"><button class="btn primary" data-act="new-acc">${icon('plus')}<span>Agregar cuenta</span></button></div></div>
   <section class="g2">
-    <div class="card"><div class="ch"><h2>Cuentas</h2></div><div class="list">${S.data.accounts.length ? S.data.accounts.map(a => `<div class="row click" data-acc="${a.id}"><span class="ic" style="--cat:var(--green);--cat-soft:var(--green-soft)">${icon(a.type === 'efectivo' ? 'coins' : 'bank')}</span><div class="tx"><b>${esc(a.name)}</b><span>${a.type === 'efectivo' ? 'Efectivo' : 'Débito'}${a.institution ? ' · ' + esc(a.institution) : ''}</span></div><div class="am">${money0(accountBalance(a, ym))}<small>al cierre de ${monthShort(ym)}</small></div></div>`).join('') : '<div class="empty"><h3>Sin cuentas</h3><p>Agrega tu cuenta de débito o efectivo para saber cuánto tienes.</p></div>'}</div>
+    <div class="card"><div class="ch"><h2>Cuentas</h2><span class="tag">${S.data.accounts.length}</span></div><div class="list">${S.data.accounts.length ? S.data.accounts.map(a => { const f = accountFlow(a, ym), main = mainAccount() === a; return `<div class="row click" data-acc="${a.id}"><span class="ic" style="--cat:var(--green);--cat-soft:var(--green-soft)">${icon(a.type === 'efectivo' ? 'coins' : 'bank')}</span><div class="tx"><b>${esc(a.name)}${main ? ' <span class="tag good">En Inicio</span>' : ''}</b><span>Entró ${money0(f.in)} · Salió ${money0(f.out)} en ${monthShort(ym)}</span></div><div class="am">${money0(accountNow(a, ym))}<small>${ym === thisMonth() ? 'hoy, aprox.' : 'al cierre de ' + monthShort(ym)}</small></div></div>`; }).join('') : '<div class="empty"><h3>Sin cuentas</h3><p>Agrega tus cuentas para saber cuánto tiene cada una.</p></div>'}</div>
+      ${missingMyAccounts().length ? `<div class="acc-suggest"><p>Agrega de un jalón las que te faltan: <b>${missingMyAccounts().join(', ')}</b>. Luego tocas cada una para poner cuánto tiene.</p><button class="btn secondary sm" data-act="add-my-accs">${icon('plus')}Agregar ${missingMyAccounts().length === 1 ? 'esa cuenta' : `esas ${missingMyAccounts().length} cuentas`}</button></div>` : ''}
       <div class="f"><label for="goal">Meta de ahorro mensual</label><input class="inp" id="goal" type="number" min="0" step="100" value="${S.data.savingsGoal || ''}" placeholder="Ej. 3000"></div></div>
     <div class="card"><div class="ch"><h2>Datos</h2></div>
       ${S.data.demo ? `<p>Estás viendo <b>datos de demostración</b>. Cuando quieras empezar con tus finanzas reales, bórralos y comienza desde cero. Las categorías se conservan.</p><button class="btn danger" data-act="clear-demo" style="align-self:flex-start">${icon('trash')}Borrar datos de demostración</button>` : `<p>Tus datos se guardan en este navegador. Descarga un respaldo de vez en cuando.</p>`}

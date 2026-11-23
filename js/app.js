@@ -41,6 +41,7 @@ const ACTIONS = {
   'clear-demo': () => confirmBox('¿Borrar los datos de demostración?', 'Se eliminan movimientos, tarjetas, deudas y recurrentes de ejemplo. Las categorías se quedan para que empieces desde cero.', () => { S.data = emptyData(); saveData(); S.month = thisMonth(); render(); toast('Listo, empieza desde cero'); }, 'Borrar'),
   'load-demo': () => confirmBox('¿Cargar datos de demostración?', 'Reemplaza lo que tienes ahora por los datos de ejemplo.', () => { S.data = demoData(); saveData(); S.month = thisMonth(); render(); toast('Datos demo cargados'); }, 'Cargar'),
   'reset': () => confirmBox('¿Empezar de cero?', 'Se borra todo: movimientos, tarjetas, deudas, recurrentes y presupuestos.', () => { S.data = emptyData(); saveData(); S.month = thisMonth(); render(); toast('Todo limpio'); }, 'Borrar'),
+  'add-my-accs': addMyAccounts,
   'more': () => openSheet(), 'theme': toggleTheme, 'lock': lockApp, 'today': () => { S.month = thisMonth(); render(); },
 };
 
@@ -110,6 +111,8 @@ function render() {
   app.querySelectorAll('[data-acc]').forEach(r => r.addEventListener('click', () => formAccount(byId(S.data.accounts, r.dataset.acc))));
   app.querySelectorAll('[data-budget]').forEach(r => r.addEventListener('click', () => formBudget(r.dataset.budget)));
   app.querySelectorAll('[data-ev]').forEach(r => r.addEventListener('click', () => { const [kind, id] = r.dataset.ev.split(':'); if (kind === 'tarjeta' || kind === 'corte') detailCard(byId(S.data.cards, id)); else if (kind === 'deuda') detailDebt(byId(S.data.debts, id)); else if (kind === 'meses') formInstallment(byId(S.data.installments, id)); else formTx(byId(S.data.transactions, id)); }));
+  app.querySelectorAll('.acc-pick').forEach(s => { s.addEventListener('click', e => e.stopPropagation()); s.addEventListener('change', () => { S.data.mainAccountId = s.value; saveData(); render(); toast(`En Inicio ahora ves ${accountName(s.value)}`); }); });
+  app.querySelectorAll('[data-dd]').forEach(b => b.addEventListener('click', () => { S.ddNoFixed = b.dataset.dd === 'var'; S._keepScroll = true; render(); }));
   // leyenda ↔ donut
   app.querySelectorAll('.legend .l').forEach(l => { const key = l.dataset.key; const wrap = l.closest('.donutwrap'); l.addEventListener('mouseenter', () => { wrap.querySelectorAll('.donut path').forEach(p => p.style.opacity = p.dataset.key === key ? 1 : .25); wrap.querySelectorAll('.legend .l').forEach(x => x.classList.toggle('dim', x !== l)); }); l.addEventListener('mouseleave', () => { wrap.querySelectorAll('.donut path').forEach(p => p.style.opacity = 1); wrap.querySelectorAll('.legend .l').forEach(x => x.classList.remove('dim')); }); });
   document.title = `${v.title} · Raw Money`;
